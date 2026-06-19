@@ -1,0 +1,439 @@
+@import "tailwindcss";
+
+:root {
+  /* "Gallery" — Apple / Tesla / 美術館 の白。Near-monochrome, paper light,
+     hairline borders, soft depth, colour reserved to a whisper. */
+
+  /* Surfaces — 和紙/美術館の壁 (warm off-whites, white cards) */
+  --cf-canvas: #f3f1ec;        /* 生成り — museum wall */
+  --cf-panel: #faf9f6;         /* panel, a touch lighter */
+  --cf-surface: #ffffff;       /* node card / inputs — pure white */
+  --cf-surface-hover: #f7f5f1;
+  --cf-elevated: #ffffff;      /* popovers */
+
+  /* Borders — hairlines */
+  --cf-border: #e7e3da;
+  --cf-border-strong: #d4cfc3;
+
+  /* Text — Apple 近黒の階調 */
+  --cf-text: #1d1d1f;          /* near-black */
+  --cf-text-dim: #6b6b70;      /* secondary */
+  --cf-text-faint: #a3a09a;    /* tertiary */
+
+  /* Single chrome accent — 墨 ink. Primary action & focus stay monochrome
+     (Tesla/museum); semantic colour appears only as a whisper on icons. */
+  --cf-accent: #1d1d1f;        /* 墨 ink */
+  --cf-on-accent: #ffffff;     /* text/glyph on the accent fill */
+  --cf-edge: #c7c2b7;          /* connector line */
+  /* Primary action — softened so the one CTA isn't max-contrast (墨→鈍) */
+  --cf-primary: #514d45;       /* soft charcoal */
+  --cf-on-primary: #f7f5f1;
+
+  /* Type — refined sans (SF/PingFang TC on mac) + a true mono for data. */
+  --cf-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC",
+    "Noto Sans TC", "Microsoft JhengHei", "Hiragino Sans", "Inter", sans-serif;
+  --cf-mono: "SF Mono", ui-monospace, "JetBrains Mono", "Menlo", monospace;
+  --cf-warn: #b07d2a;          /* 山吹(沈) — incomplete/attention */
+
+  /* Commensurable scale — every size descends from a 4px base (symmetria). */
+  --cf-u: 4px;          /* base unit */
+  --cf-node-w: 208px;   /* 4 × 52 */
+  --cf-panel-w: 336px;  /* 4 × 84 — a touch roomier, more 間 */
+  --cf-radius: 14px;    /* softer, Apple-ish */
+  --cf-radius-sm: 9px;
+  --cf-shadow: 0 1px 2px rgba(20, 18, 14, 0.05), 0 10px 28px rgba(20, 18, 14, 0.07);
+}
+
+/* Dark "Gallery" — Apple/Tesla dark: true near-black, white ink accent. */
+[data-theme="dark"] {
+  --cf-canvas: #0e0f11;
+  --cf-panel: #161719;
+  --cf-surface: #1c1d20;
+  --cf-surface-hover: #232427;
+  --cf-elevated: #232427;
+
+  --cf-border: #2c2e32;
+  --cf-border-strong: #3c3f45;
+
+  --cf-text: #f5f5f7;
+  --cf-text-dim: #a1a1a6;
+  --cf-text-faint: #6b6b70;
+
+  --cf-accent: #f5f5f7;        /* near-white ink */
+  --cf-on-accent: #1d1d1f;     /* dark text on the white fill */
+  --cf-edge: #44474d;
+  --cf-warn: #d6a448;
+  --cf-primary: #d8d8db;       /* soft light — gentler than pure white */
+  --cf-on-primary: #1d1d1f;
+
+  --cf-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+body {
+  margin: 0;
+  background: var(--cf-canvas);
+  font-family: var(--cf-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  color: var(--cf-text);
+}
+#root { width: 100%; height: 100dvh; }
+.font-mono { font-family: var(--cf-mono) !important; font-variant-numeric: tabular-nums; }
+
+/* ---------- Node cards ---------- */
+.cf-node {
+  position: relative;
+  width: var(--cf-node-w);
+  border-radius: var(--cf-radius);
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border);
+  box-shadow: var(--cf-shadow);
+  color: var(--cf-text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+.cf-node:hover {
+  background: var(--cf-surface-hover);
+  border-color: var(--cf-border-strong);
+}
+.cf-node.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), var(--cf-shadow);
+}
+.cf-node__header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 8px;       /* more 間 (whitespace) */
+}
+.cf-node__icon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--cf-radius-sm);
+  display: grid;
+  place-items: center;
+  color: var(--accent);                          /* glyph carries the whisper of hue */
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+}
+.cf-node__title { font-size: 13px; font-weight: 600; color: var(--cf-text); line-height: 1.25; letter-spacing: -0.01em; }
+.cf-node__summary {
+  padding: 0 14px 14px 54px;     /* align under the title, hang past the icon */
+  margin-top: -2px;
+  font-size: 12px;
+  color: var(--cf-text-dim);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+/* ---------- Terminal (端點: 信用卡 輸入 / 回饋 輸出) — elevated anchor + spine ---------- */
+.cf-node--terminal::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--accent);
+}
+
+/* ---------- Operator (邏輯/約束: 條件·門檻·上限·擇優) — flat, lighter, compact ---------- */
+.cf-node--operator {
+  width: 184px;
+  border-radius: 10px;
+  box-shadow: none;
+  /* Tint over white (not the canvas-coloured panel) so it reads as a card, and
+     give the dashed outline a whisper of the node's hue for identity. */
+  background: color-mix(in srgb, var(--accent) 9%, var(--cf-surface));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--cf-border-strong));
+  border-style: dashed;
+}
+.cf-node--operator:hover {
+  background: color-mix(in srgb, var(--accent) 14%, var(--cf-surface));
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--cf-border-strong));
+}
+.cf-node--operator.is-selected { box-shadow: 0 0 0 1.5px var(--accent); }
+.cf-node--operator .cf-node__header { padding: 8px 10px 4px; gap: 7px; }
+.cf-node--operator .cf-node__icon { width: 20px; height: 20px; background: transparent; border-radius: 6px; }
+.cf-node--operator .cf-node__title { font-size: 12px; }
+.cf-node--operator .cf-node__summary { padding: 0 10px 9px 37px; font-size: 11px; }
+
+/* ---------- OR badge (≥2 incoming = any-of) ---------- */
+.cf-orbadge {
+  position: absolute;
+  top: -9px;
+  left: 12px;
+  z-index: 5;
+  padding: 1px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--cf-text-dim);
+  background: var(--cf-elevated);
+  border: 1px solid var(--cf-border-strong);
+  border-radius: 999px;
+}
+
+/* ---------- Edge labels (且 / AND) ---------- */
+.react-flow__edge-text { fill: var(--cf-text-dim); font-size: 10px; }
+.react-flow__edge-textbg { fill: var(--cf-panel); }
+
+/* ---------- Node "+" append control (Dify/n8n click-to-add) ---------- */
+.cf-append {
+  position: absolute;
+  top: 50%;
+  right: -34px;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 6;
+}
+.cf-node:hover .cf-append,
+.cf-node.is-selected .cf-append,
+.cf-append:focus-within { opacity: 1; }
+.cf-append__btn {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border-strong);
+  color: var(--cf-text-dim);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.cf-append__btn:hover { background: var(--cf-accent); color: var(--cf-on-accent); border-color: transparent; }
+.cf-append__menu {
+  position: absolute;
+  left: 28px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--cf-elevated);
+  border: 1px solid var(--cf-border-strong);
+  border-radius: var(--cf-radius-sm);
+  box-shadow: var(--cf-shadow);
+  white-space: nowrap;
+}
+.cf-append__menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--cf-text-dim);
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.cf-append__menu button:hover { background: var(--cf-surface-hover); color: var(--cf-text); }
+
+/* ---------- Inspector panel ---------- */
+.cf-panel {
+  width: var(--cf-panel-w);
+  flex: none;
+  background: var(--cf-panel);
+  border-left: 1px solid var(--cf-border);
+}
+
+/* ---------- Toolbar ---------- */
+.cf-toolbar {
+  background: var(--cf-panel);
+  border-bottom: 1px solid var(--cf-border);
+}
+/* Button system — 純色點用不面用: neutral by default, one primary fill only. */
+.cf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--cf-radius-sm);
+  padding: 5px 10px;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease, filter 0.12s ease;
+}
+.cf-btn--ghost {
+  background: transparent;
+  color: var(--cf-text-dim);
+  border-color: var(--cf-border);
+}
+.cf-btn--ghost:hover {
+  background: var(--cf-surface);
+  color: var(--cf-text);
+  border-color: var(--cf-border-strong);
+}
+.cf-btn--quiet { background: transparent; color: var(--cf-text-faint); }
+.cf-btn--quiet:hover { background: var(--cf-surface); color: var(--cf-text-dim); }
+.cf-btn--primary { background: var(--cf-primary); color: var(--cf-on-primary); }
+.cf-btn--primary:hover { opacity: 0.88; }
+.cf-btn kbd {
+  border-radius: 4px;
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border);
+  padding: 1px 4px;
+  font-size: 10px;
+  color: var(--cf-text-dim);
+}
+.cf-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.cf-divider { width: 1px; height: 16px; background: var(--cf-border); margin: 0 4px; }
+
+/* ---------- Overflow / dropdown menu ---------- */
+.cf-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 144px;
+  padding: 4px;
+  background: var(--cf-elevated);
+  border: 1px solid var(--cf-border-strong);
+  border-radius: 10px;
+  box-shadow: var(--cf-shadow);
+  animation: cf-pop 0.12s ease;
+}
+.cf-menu--left { left: 0; right: auto; }
+.cf-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--cf-text-dim);
+  font-size: 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
+.cf-menu__item:hover { background: var(--cf-surface-hover); color: var(--cf-text); }
+.cf-menu__item--danger:hover { background: color-mix(in srgb, #d4503a 14%, transparent); color: #d4503a; }
+.cf-menu__header { padding: 7px 10px 3px; font-size: 10px; letter-spacing: 0.05em; color: var(--cf-text-faint); }
+.cf-menu__hint { font-size: 10px; color: var(--cf-text-faint); background: transparent; border: 0; }
+.cf-caret { margin-left: 4px; font-size: 9px; opacity: 0.6; }
+
+/* ---------- Field primitives ---------- */
+.cf-field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cf-text-dim);
+}
+.cf-input,
+.cf-select {
+  width: 100%;
+  margin-top: 4px;
+  background: var(--cf-surface);
+  border: 1px solid var(--cf-border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 12px;
+  color: var(--cf-text);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.cf-input:focus,
+.cf-select:focus {
+  border-color: var(--cf-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cf-accent) 30%, transparent);
+}
+.cf-input::placeholder { color: var(--cf-text-faint); }
+.cf-select option { background: var(--cf-elevated); color: var(--cf-text); }
+
+.cf-chip {
+  border-radius: 8px;
+  padding: 5px 11px;
+  font-size: 11px;
+  font-weight: 500;
+  background: var(--cf-canvas);
+  color: var(--cf-text-dim);
+  border: 1px solid var(--cf-border);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.cf-chip:hover { color: var(--cf-text); border-color: var(--cf-border-strong); }
+.cf-chip.is-active {
+  background: var(--cf-accent);
+  color: var(--cf-on-accent);
+  border-color: var(--cf-accent);
+}
+.cf-chip--add {
+  border-style: dashed;
+  color: var(--cf-text-faint);
+  padding-inline: 9px;
+}
+.cf-chip--add:hover { color: var(--cf-text); border-color: var(--cf-border-strong); }
+
+.cf-seg {
+  display: inline-flex;
+  width: 100%;
+  margin-top: 4px;
+  background: var(--cf-canvas);
+  border: 1px solid var(--cf-border);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 3px;
+}
+.cf-seg button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--cf-text-faint);
+  font-size: 11px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.cf-seg button:hover { color: var(--cf-text-dim); }
+.cf-seg button.is-active { background: var(--cf-surface); color: var(--cf-text); box-shadow: 0 1px 2px rgba(20,18,14,0.1); }
+
+/* ---------- Motion ---------- */
+@keyframes cf-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes cf-fade-up {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.cf-drop-menu { animation: cf-pop 0.12s ease; transform-origin: center; }
+
+/* Inspector content fades when switching between nodes. */
+.cf-panel__body { animation: cf-fade-up 0.16s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, .cf-drop-menu, .cf-panel__body { animation: none !important; }
+}
+
+/* ---------- Handles ---------- */
+.react-flow__handle.cf-handle {
+  transition: box-shadow 0.12s ease, background 0.12s ease;
+}
+.react-flow__handle.cf-handle:hover,
+.react-flow__handle.cf-handle.connecting {
+  background: var(--h);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--h) 22%, transparent);
+}
+
+/* ---------- Edges ---------- */
+.react-flow__edge-path {
+  stroke: var(--cf-edge) !important;
+  stroke-width: 1.5 !important;
+  transition: stroke 0.15s ease;
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path {
+  stroke: var(--cf-accent) !important;
+  stroke-width: 2 !important;
+}

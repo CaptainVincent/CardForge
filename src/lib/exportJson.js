@@ -1,0 +1,420 @@
+/**
+ * Convert React Flow nodes + edges → ChristianWolff-compatible JSON.
+ *
+ * Topology model (matches the free-form editor):
+ *  - A reward is gated by the chain of conditions on each path from the card.
+ *    Conditions in SERIES (cond→cond→…→reward) are merged with AND.
+ *  - Multiple independent paths into one reward = separate rules (OR).
+ *  - When several rewards feed the SAME limit node (PARALLEL / fan-in), that
+ *    cap is POOLED: emitted once under `limit_pools` and referenced by each
+ *    member rule via `limits.pool`.
+ */
+import { sortByFrom } from './options';
+
+const slug = (s) => (s || '').toLowerCase().replace(/\s+/g, '-');
+
+// Export ONE card (the cardNode) and its downstream rule subtree.
+export function exportCard(cardNode, nodes, edges) {
+  if (!cardNode) return null;
+  const cardId = cardNode.id;
+  const cardName = cardNode.data.cardName || 'Unnamed Card';
+  const account = cardNode.data.account || '';
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const incoming = (id) => edges.filter((e) => e.target === id).map((e) => byId.get(e.source)).filter(Boolean);
+  const outgoing = (id) => edges.filter((e) => e.source === id).map((e) => byId.get(e.target)).filter(Boolean);
+
+  // Nodes reachable downstream of this card — its own rule subtree.
+  const scope = (() => {
+    const set = new Set();
+    const stack = [cardId];
+    while (stack.length) {
+      const id = stack.pop();
+      for (const n of outgoing(id)) if (!set.has(n.id)) { set.add(n.id); stack.push(n.id); }
+    }
+    return set;
+  })();
+
+  // All condition-chains gating a node, walking backwards through condition/card
+  // predecessors. Only paths reaching THIS card count. Returns AND-groups.
+  function chainsInto(node, seen = new Set()) {
+    if (seen.has(node.id)) return []; // guard against cycles
+    seen.add(node.id);
+    const preds = incoming(node.id);
+    if (preds.length === 0) return node.type === 'reward' ? [] : [[]];
+    const out = [];
+    for (const p of preds) {
+      if (p.type === 'card') {
+        if (p.id === cardId) out.push([]); // only this card's paths
+      } else if (p.type === 'condition' || p.type === 'any') {
+        const sub = chainsInto(p, new Set(seen));
+        const base = sub.length ? sub : [[]];
+        for (const s of base) out.push([...s, p]);
+      } else if (p.type === 'gate') {
+        // gate is transparent for condition-merging — pass its upstream through
+        const sub = chainsInto(p, new Set(seen));
+        const base = sub.length ? sub : [[]];
+        for (const s of base) out.push([...s]);
+      } else {
+        out.push([]); // reward/limit feeding back in — no condition contribution
+      }
+    }
+    return out;
+  }
+
+  // Gate nodes that gate a reward = its gate ancestors (through condition/gate).
+  function ancestorGates(node, seen = new Set()) {
+    if (seen.has(node.id)) return [];
+    seen.add(node.id);
+    const gates = [];
+    for (const p of incoming(node.id)) {
+      if (p.type === 'gate') { gates.push(p); gates.push(...ancestorGates(p, new Set(seen))); }
+      else if (p.type === 'condition' || p.type === 'any') gates.push(...ancestorGates(p, new Set(seen)));
+    }
+    return gates;
+  }
+
+  // Rewards reachable downstream of a gate (to detect shared/pooled gates).
+  function downstreamRewards(gate) {
+    const found = new Set();
+    const seen = new Set();
+    const stack = [...outgoing(gate.id)];
+    while (stack.length) {
+      const n = stack.pop();
+      if (seen.has(n.id)) continue;
+      seen.add(n.id);
+      if (n.type === 'reward') found.add(n.id);
+      stack.push(...outgoing(n.id));
+    }
+    return found;
+  }
+
+  // Merge condition nodes with AND semantics, splitting positive vs negated
+  // (NOT) nodes into include / exclude criteria sets. `any` nodes contribute
+  // one cross-field OR group each (a CNF clause: at least one alternative must
+  // match). Returns { include, exclude, orGroups }.
+  function mergeConditions(conds) {
+    const blank = () => ({
+      isOverseas: null,
+      minAmountTwd: null,
+      currencies: new Set(),
+      channels: new Set(),
+      categories: new Set(),
+      paymentMethods: new Set(),
+      custom: [],
+    });
+    const inc = blank();
+    const exc = blank();
+    const orGroups = [];
+    for (const c of conds) {
+      if (c.type === 'any') {
+        const alts = (c.data?.alternatives || [])
+          .map(buildMatchFromData)
+          .filter((o) => Object.keys(o).length);
+        if (alts.length) orGroups.push(alts);
+        continue;
+      }
+      const d = c.data || {};
+      const t = d.negate ? exc : inc;
+      if (d.isOverseas != null) t.isOverseas = d.isOverseas;
+      (d.currencies || []).forEach((x) => t.currencies.add(x));
+      (d.channels || []).forEach((x) => t.channels.add(x));
+      (d.categories || []).forEach((x) => t.categories.add(x));
+      (d.paymentMethods || []).forEach((x) => t.paymentMethods.add(x));
+      (d.custom || []).forEach((p) => t.custom.push(p));
+      if (d.minAmountTwd) t.minAmountTwd = Math.max(t.minAmountTwd || 0, d.minAmountTwd);
+    }
+    const flat = (s) => ({
+      isOverseas: s.isOverseas,
+      minAmountTwd: s.minAmountTwd,
+      currencies: [...s.currencies],
+      channels: [...s.channels],
+      categories: [...s.categories],
+      paymentMethods: [...s.paymentMethods],
+      custom: s.custom,
+    });
+    return { include: flat(inc), exclude: flat(exc), orGroups };
+  }
+
+  // Normalize a generic predicate's value by operator.
+  function normPredValue(op, value) {
+    if (op === 'in' || op === 'not_in') return String(value).split(',').map((s) => s.trim()).filter(Boolean);
+    if (op === 'gte' || op === 'lte') { const n = Number(value); return Number.isNaN(n) ? value : n; }
+    return value;
+  }
+
+  // Build a match object (used for both include and the nested exclude).
+  function buildMatch(m) {
+    const o = {};
+    if (m.isOverseas != null) o.is_overseas = m.isOverseas;
+    if (m.currencies.length) o.currencies = m.currencies;
+    if (m.channels.length) o.channels = m.channels;
+    if (m.categories.length) o.categories = m.categories;
+    if (m.paymentMethods.length) o.payment_methods = m.paymentMethods;
+    if (m.minAmountTwd) o.min_amount_twd = m.minAmountTwd;
+    const customs = (m.custom || [])
+      .filter((p) => p.field && p.value !== '' && p.value != null)
+      .map((p) => ({ field: p.field, op: p.op || 'is', value: normPredValue(p.op || 'is', p.value) }));
+    if (customs.length) o.custom = customs;
+    return o;
+  }
+
+  // Build a match object from raw condition-like node data (an `any` alternative).
+  function buildMatchFromData(d = {}) {
+    return buildMatch({
+      isOverseas: d.isOverseas ?? null,
+      minAmountTwd: d.minAmountTwd ?? null,
+      currencies: d.currencies || [],
+      channels: d.channels || [],
+      categories: d.categories || [],
+      paymentMethods: d.paymentMethods || [],
+      custom: d.custom || [],
+    });
+  }
+
+  // Short label for one OR-group alternative (for human-readable rule names).
+  function subLabel(sub) {
+    const p = [];
+    if (sub.is_overseas === true) p.push('海外');
+    if (sub.is_overseas === false) p.push('國內');
+    if (sub.currencies) p.push(sub.currencies.join('/'));
+    if (sub.channels) p.push(sub.channels.join('/'));
+    if (sub.categories) p.push(sub.categories.join('/'));
+    if (sub.payment_methods) p.push(sub.payment_methods.join('/'));
+    return p.join('+');
+  }
+
+  // Identify pooled limits: a limit node fed by >1 reward.
+  const limitFeeders = new Map(); // limitId -> count of reward feeders
+  for (const n of nodes) {
+    if (n.type !== 'limit') continue;
+    const rewardFeeders = incoming(n.id).filter((p) => p.type === 'reward').length;
+    limitFeeders.set(n.id, rewardFeeders);
+  }
+  const limitPools = {};
+  const eligibilityPools = {};
+
+  const rules = {};
+  let ruleIndex = 0;
+
+  for (const reward of nodes.filter((n) => n.type === 'reward' && scope.has(n.id))) {
+    const chains = chainsInto(reward);
+    if (chains.length === 0) continue; // unreachable from the card
+
+    const limitNode = outgoing(reward.id).find((n) => n.type === 'limit');
+    const pooled = limitNode && (limitFeeders.get(limitNode.id) || 0) > 1;
+    const selectNode = outgoing(reward.id).find((n) => n.type === 'select');
+
+    // Register a pool once.
+    let poolId = null;
+    if (pooled) {
+      poolId = `${slug(cardName)}-pool-${limitNode.id}`;
+      if (!limitPools[poolId]) {
+        const ld = limitNode.data || {};
+        limitPools[poolId] = {
+          period: { cycle: ld.cycle || 'monthly' },
+          ...(ld.maxRewardPerPeriod ? { max_reward_per_period: ld.maxRewardPerPeriod } : {}),
+          ...(ld.maxRewardTotal ? { max_reward_total: ld.maxRewardTotal } : {}),
+          members: [],
+        };
+      }
+    }
+
+    // Unlock gate(s) for this reward; shared gate (→ >1 reward) becomes a pool.
+    const gate = ancestorGates(reward)[0];
+    let eligPoolId = null;
+    if (gate && downstreamRewards(gate).size > 1) {
+      eligPoolId = `${slug(cardName)}-elig-${gate.id}`;
+      if (!eligibilityPools[eligPoolId]) {
+        const gd = gate.data || {};
+        eligibilityPools[eligPoolId] = {
+          min_spending: { amount: gd.threshold || 0, currency: gd.currency || 'TWD', period: gd.cycle || 'monthly' },
+          members: [],
+        };
+      }
+    }
+
+    for (const chain of chains) {
+      const cd = mergeConditions(chain);
+      const rd = reward.data || {};
+      const ld = limitNode?.data || {};
+      ruleIndex++;
+      const id = `${slug(cardName)}-rule-${ruleIndex}`;
+
+      const rule = {
+        id,
+        name: id,
+        card: cardName,
+        account,
+        account_match: 'exact',
+        is_active: true,
+        period: { cycle: ld.cycle || 'monthly' },
+        match: {},
+        eligibility: {},
+        reward: {
+          type: rd.rewardType || 'cashback',
+          method: rd.method || 'percentage',
+          rate: (rd.method || 'percentage') === 'percentage' ? (rd.rate || 0) / 100 : 0,
+        },
+        tiers:
+          rd.method === 'percentage' && rd.tierMode === 'spend' && rd.tiers?.length
+            ? {
+                mode: 'spend',
+                bands: rd.tiers
+                  .filter((t) => t.minSpend != null || t.rate != null)
+                  .map((t) => ({ min_amount: t.minSpend || 0, rate: (t.rate || 0) / 100 })),
+              }
+            : { mode: 'flat' },
+        limits: {},
+        stacking: { layer: rd.layer || 'base', group: slug(cardName), ...(selectNode ? { select_group: selectNode.id } : {}) },
+        reward_posting: { account: `Income:CreditCard:Reward:${account.split(':').slice(-2).join(':')}` },
+        provenance: { generated_by: 'cardforge' },
+      };
+
+      // Match (AND-merged include) + exclude (NOT)
+      rule.match = buildMatch(cd.include);
+      const exc = buildMatch(cd.exclude);
+      if (Object.keys(exc).length) rule.match.exclude = exc;
+      if (cd.orGroups?.length) rule.match.or_groups = cd.orGroups;
+
+      // Reward specifics
+      if (rd.method === 'fixed') {
+        rule.reward.fixed_amount = rd.fixedAmount || 0;
+        rule.reward.reward_currency = rd.rewardCurrency || 'TWD';
+      }
+      if (rd.method === 'per_dollar') {
+        rule.reward.per_dollar = rd.perDollar || 0;
+        rule.reward.points_per_unit = rd.pointsPerUnit ?? 1;
+      }
+      // Point identity only — valuation (TWD-per-point) is intentionally NOT
+      // exported: it's time-varying and belongs in the consuming ledger
+      // (Beancount price db / commodity meta), not in the engine-agnostic rules.
+      if (rd.pointName) {
+        rule.reward.point_name = rd.pointName;
+      }
+
+      // Limits (caps) — pooled (reference) or inline
+      if (poolId) {
+        rule.limits.pool = poolId;
+        limitPools[poolId].members.push(id);
+      } else if (limitNode) {
+        if (ld.maxRewardPerPeriod) rule.limits.max_reward_per_period = ld.maxRewardPerPeriod;
+        if (ld.maxRewardTotal) rule.limits.max_reward_total = ld.maxRewardTotal;
+        if (ld.maxRewardPerTxn) rule.limits.max_reward_per_txn = ld.maxRewardPerTxn;
+      }
+
+      // Eligibility (unlock gate) — pooled or inline
+      if (gate) {
+        if (eligPoolId) {
+          rule.eligibility.pool = eligPoolId;
+          eligibilityPools[eligPoolId].members.push(id);
+        } else {
+          const gd = gate.data || {};
+          rule.eligibility.min_spending = {
+            amount: gd.threshold || 0,
+            currency: gd.currency || 'TWD',
+            period: gd.cycle || 'monthly',
+          };
+        }
+      }
+
+      // One-time settlement (首刷禮 / 里程碑)
+      if (rd.settlement === 'once') rule.settlement = 'once';
+
+      // Period dates + activation (promo / rotating)
+      if (rd.startDate) rule.period.start = rd.startDate;
+      if (rd.endDate) rule.period.end = rd.endDate;
+      if (rd.requiresActivation) rule.requires_activation = true;
+
+      // Human-readable name
+      const inc = cd.include;
+      const parts = [];
+      if (inc.isOverseas === true) parts.push('海外');
+      if (inc.isOverseas === false) parts.push('國內');
+      if (inc.currencies.length) parts.push(inc.currencies.join('/'));
+      if (inc.channels.length) parts.push(inc.channels.join('/'));
+      if (inc.categories.length) parts.push(inc.categories.join('/'));
+      if (inc.paymentMethods.length) parts.push(inc.paymentMethods.join('/'));
+      for (const g of cd.orGroups || []) {
+        const lbls = g.map(subLabel).filter(Boolean);
+        if (lbls.length) parts.push(`(${lbls.join('或')})`);
+      }
+      if (parts.length === 0) parts.push('一般消費');
+      if (cd.exclude && Object.keys(buildMatch(cd.exclude)).length) {
+        const ex = [...cd.exclude.categories, ...cd.exclude.channels, ...cd.exclude.paymentMethods];
+        if (ex.length) parts.push(`排除${ex.join('/')}`);
+      }
+
+      const ratePart = rd.method === 'fixed'
+        ? `${rd.rewardCurrency || 'TWD'} ${rd.fixedAmount?.toLocaleString() || '?'}`
+        : rd.method === 'per_dollar'
+          ? `每${rd.perDollar || '?'}元送${rd.pointsPerUnit ?? 1}`
+          : `${rd.rate || 0}%`;
+      const layerPart = rd.layer === 'bonus' ? '+' : rd.layer === 'exclusive' ? '⚡' : '';
+      rule.name = `${cardName} ${parts.join(' · ')} ${layerPart}${ratePart}`;
+
+      rules[id] = rule;
+    }
+  }
+
+  const result = {
+    card: cardName,
+    rounding: cardNode.data.rounding || 'floor',
+    fx_fee_rate: cardNode.data.fxFeeRate ?? 1.5,
+    rules,
+    card_profile: {},
+    generations: [],
+  };
+  if (Object.keys(limitPools).length) result.limit_pools = limitPools;
+  if (Object.keys(eligibilityPools).length) result.eligibility_pools = eligibilityPools;
+  return result;
+}
+
+// One exported object per card node on the canvas.
+export function exportCards(nodes, edges) {
+  return nodes.filter((n) => n.type === 'card').map((c) => exportCard(c, nodes, edges)).filter(Boolean);
+}
+
+// Valuation for the point programs actually used by these cards' rules.
+// `programs` = settings shape { name: { basis, rates:[{from,rate}] } }. Emits a
+// DATED price series (engine-neutral numbers, not Beancount syntax) so a
+// consuming ledger can build a price timeline (from === absent = baseline):
+//   point_programs: { "小樹點": { basis:"fixed", prices:[ {twd_per_point:0.1},
+//                                  {from:"2026-11-10", twd_per_point:0.05} ] } }
+function buildPointPrograms(cards, programs) {
+  const used = new Set();
+  for (const c of cards) {
+    for (const r of Object.values(c.rules)) if (r.reward?.point_name) used.add(r.reward.point_name);
+  }
+  const out = {};
+  for (const name of used) {
+    const p = programs[name];
+    const valid = (p?.rates || []).filter((r) => r.rate != null && !Number.isNaN(Number(r.rate)));
+    if (!valid.length) continue; // only export configured programs
+    const prices = [...valid]
+      .sort(sortByFrom)
+      .map((r) => ({ ...(r.from ? { from: r.from } : {}), twd_per_point: Number(r.rate) }));
+    out[name] = { basis: p.basis || 'fixed', prices };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// The whole database: every card's rules under { cards: [...] }, plus the dated
+// valuation of any point programs they use (opts.pointPrograms = settings map).
+export function exportToJson(nodes, edges, opts = {}) {
+  const cards = exportCards(nodes, edges);
+  if (cards.length === 0) return null;
+  const result = { cards };
+  const programs = buildPointPrograms(cards, opts.pointPrograms || {});
+  if (programs) result.point_programs = programs;
+  return result;
+}
+
+export function downloadJson(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
