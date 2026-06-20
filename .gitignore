@@ -1,4 +1,26 @@
-# Logs
+# ---- Dependencies ----
+node_modules
+.pnp
+.pnp.*
+
+# ---- Build output ----
+dist
+dist-ssr
+build
+*.local
+
+# ---- Caches ----
+.vite
+.cache
+.eslintcache
+*.tsbuildinfo
+
+# ---- Tests / coverage ----
+coverage
+.nyc_output
+.vitest
+
+# ---- Logs ----
 logs
 *.log
 npm-debug.log*
@@ -7,18 +29,36 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# ---- Environment / secrets ----
+.env
+.env.*
+!.env.example
+*.pem
 
-# Editor directories and files
+# ---- OS files ----
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ---- Editor / IDE ----
 .vscode/*
 !.vscode/extensions.json
 .idea
-.DS_Store
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# ---- Scratch / temp ----
+tmp_*
+*.tmp
+
+# ---- Claude Code local state ----
+# Keep the committed skill; ignore any other local Claude files.
+.claude/*
+!.claude/skills

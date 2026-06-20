@@ -1,6 +1,16 @@
 # 🔧 CardForge
 
-視覺化的信用卡回饋規則編輯器。在一張畫布上用節點圖描述**多張卡**的回饋規則,內建試算 / 推薦 / 比較 / 月度模擬與規則檢查(lint),並與 ChristianWolff 相容的 JSON 雙向匯入匯出。
+視覺化的信用卡回饋規則編輯器。在一張畫布上用節點圖描述**多張卡**的回饋規則,內建試算 / 推薦 / 比較 / 月度模擬與規則檢查(lint),並支援與引擎相容的 **CardForge 規則 JSON** 雙向匯入匯出。
+
+線上版:<https://captainvincent.github.io/CardForge/>
+
+## 快速上手
+
+1. **載入範例**:工具列「範例」→ 任選一張(或「綜合範例」)即可看到完整節點圖。
+2. **建第一張卡**:工具列「新增 ▾ → 信用卡」放下一張卡;從卡片的 `+` 拖線出「配對條件」與「回饋」。
+3. **編輯**:點任一節點 → 右側 Inspector 填欄位;節點卡只顯示一行摘要。
+4. **試算/推薦**:工具列「分析」勾選一筆消費,看回饋金額與命中規則。
+5. **存取**:畫布自動存於瀏覽器;「資料 ▾ → 匯入/匯出」可用檔案、貼上或網址交換 JSON。
 
 ## 開發
 
@@ -10,6 +20,7 @@ pnpm dev      # 開發伺服器（--host，可區網存取）
 pnpm build    # production 打包
 pnpm preview  # 預覽打包結果
 pnpm lint     # ESLint（零錯為準）
+pnpm test     # Vitest（引擎單元測試）
 ```
 
 ## 節點模型
@@ -17,23 +28,35 @@ pnpm lint     # ESLint（零錯為準）
 | 節點 | 類別 | 用途 |
 |---|---|---|
 | 信用卡 `card` | 端點 | 一張卡的根節點;畫布可有多張卡 |
-| 回饋 `reward` | 端點 | 回饋方式(%／固定／每 N 元送點)、級距、結算(每筆／一次性) |
-| 配對條件 `condition` | 邏輯 | 比對通路/類別/幣別/支付/海外/自訂述詞;可設「排除(NOT)」 |
+| 回饋 `reward` | 端點 | 回饋方式(%／固定／每 N 元送點)、級距、結算、啟用開關、備註 |
+| 配對條件 `condition` | 邏輯 | 比對通路/類別/**特店**/幣別/支付/海外/自訂述詞;可設「排除(NOT)」 |
 | 任一 `any` | 邏輯 | **跨欄位的「或」**(CNF 子句):符合任一替代條件即通過 |
 | 門檻 `gate` | 邏輯 | 累積消費解鎖;接多個回饋＝共用門檻 |
-| 上限 `limit` | 邏輯 | 單筆／單期／總回饋上限;接多個回饋＝共用額度池 |
+| 上限 `limit` | 邏輯 | 回饋／消費／筆數上限 × 單筆／單期／總;接多個回饋＝共用額度池 |
 | 擇優 `select` | 邏輯 | 多個回饋連入＝取估值最高一個(XOR) |
+| 取高 `top` | 邏輯 | 多個類別回饋連入＝依當期累積消費取最高 K 類加碼(CUBE 自選風格) |
 
 **布林語意**:串聯=AND、分支/匯入=OR、條件可反相=NOT、`任一`節點=跨欄位 OR。
 組合後可表達完整的 DNF 與 CNF(布林完備),且不會因跨欄位 OR 造成分支指數爆炸。
 
+## 回饋與規則表達力
+
+- **回饋公式**:百分比 / 固定金額 / 每 N 元送點;級距三模式 `flat`(單一)、`spend`(消費級距,整筆取最高符合)、`marginal`(超額累進,各段分別計)。
+- **上限**:`metric`(回饋金額 / 消費金額「前 $X」/ 筆數「前 N 筆」)× `window`(單筆 / 單期 / 總);一個回饋可掛多道,亦可多規則共用額度池。
+- **特店(merchant)**:比「類別/MCC」更細的特定商家;可單獨使用或與類別/通路併用。
+- **點數**:`point_name` + 全卡共用的點值(固定 / 估算,可隨日期變動)。
+- **啟用開關 `is_active`**:關閉=保留規則但不參與試算(適合限時/新戶促銷:存查但不灌爆日常估算)。
+- **備註 `note`**:引擎無法精確表達的純文字細則(隨規則匯出/匯入、不參與試算)。
+  > 能用欄位/述詞描述的細則(如「喬山限實體門市」)請優先**結構化**(拆規則 + 共用上限池),`note` 只留給真正無欄位可對應的文字。
+
 ## 操作
 
 - **新增節點**:工具列「新增 ▾」,或從節點的 `+` 拖線到空白處(只列出語意合理的下游節點)。
-- **連線**:採嚴格驗證 — 不合邏輯的連線會被取消並提示原因(例如「上限」只能接在「回饋」之後)。
-- **編輯**:點選節點 → 右側 Inspector 編輯所有欄位;節點卡只顯示一行摘要。
-- **快捷鍵**:`⌘Z` / `⌘⇧Z`(或 `⌘Y`)復原重做、`⌘D` 複製、`⌘S` 匯出、`Delete` / `Backspace` 刪除。
-- **主題**:工具列可切換淺色(Gallery)/ 深色,偏好存於 `localStorage`。
+- **連線**:嚴格驗證 — 不合邏輯的連線會被取消並提示原因(例如「上限」只能接在「回饋」之後)。
+- **快捷鍵**:`⌘Z` / `⌘⇧Z` 復原重做、`⌘D` 複製(節點+子樹)、`⌘C` / `⌘V` 複製/貼上(可跨卡)、`⌘S` 匯出、`Delete` / `Backspace` 刪除。
+- **刪連線**:點選連線會出現 `×`,點它即可刪除(或選取後按 `Delete`)。
+- **框選多個**:`Shift` + 在空白處拖曳會框選範圍內的節點,可一起移動或按 `Delete` 刪除(`Shift` 點擊可加選單一節點)。
+- **主題**:工具列切換淺色(Gallery)/ 深色,偏好存於 `localStorage`。
 - **持久化**:畫布(含自訂選項)自動存到 `localStorage`,重整還原。
 
 ## 分析
@@ -53,10 +76,14 @@ pnpm lint     # ESLint（零錯為準）
 
 - **單一資料來源**:`src/store/flowStore.js` — Zustand(`zundo` undo/redo + localStorage 持久化)。節點透過 store 讀寫,不在 render 期注入 `onChange`。`src/store/settings.js` 存點數匯率。
 - **節點登錄表**:`src/nodes/registry.js` 是唯一真實來源(標題/圖示/配色/handle/選單);所有型別共用一個 `GenericNode`。新增型別只需改 registry + 加一個 Fields 元件。
-- **引擎(純函式)**:`src/lib/` — `exportJson` / `importJson`(圖 ↔ JSON)、`simulate`(單筆)、`simulateMonth`(月度)、`recommend`、`lint`、`validate`、`autoLayout`(dagre)。
+- **引擎(純函式)**:`src/lib/` — `exportJson` / `importJson`(圖 ↔ JSON)、`simulate`(單筆)、`simulateMonth`(月度)、`recommend`、`lint`、`validate`、`autoLayout`(dagre)。以 Vitest 單元測試覆蓋(`test/engine.test.js`)。
 - **編輯面板**:`src/inspector/` — `Inspector` + 可複用欄位(`fields/`)+ 各型別欄位群。
 - **設計系統**:`src/index.css` 的 CSS 變數 tokens(淺色 `:root` + 深色 `[data-theme="dark"]`),近單色的 Gallery 風格、髮絲邊框 + 柔和陰影。圖示為 Lucide 單線集(`src/lib/icons.jsx`)。
 
+## AI 產生規則(skill)
+
+`.claude/skills/card-to-json/` 是一個 Claude Code skill:給一張卡的官方網址,自由探索官網(含讀圖)、把規則映射到上述構造、用真引擎自我驗證,最後產出可匯入的 JSON。詳見該目錄的 `SKILL.md` 與 `references/schema.md`。
+
 ## 技術棧
 
-React 19 · Vite · @xyflow/react(React Flow)· Zustand + zundo · lucide-react · sonner · @dagrejs/dagre · Tailwind CSS v4。
+React 19 · Vite · @xyflow/react(React Flow)· Zustand + zundo · lucide-react · sonner · @dagrejs/dagre · Tailwind CSS v4 · Vitest。
