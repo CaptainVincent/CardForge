@@ -1,7 +1,9 @@
-export default function NumberField({ label, value, onChange, placeholder, step }) {
+import InfoHint from './InfoHint';
+
+export default function NumberField({ label, value, onChange, placeholder, step, hint }) {
   return (
     <label className="block">
-      <span className="cf-field-label">{label}</span>
+      <span className="cf-field-label">{label}<InfoHint text={hint} /></span>
       <input
         type="number"
         step={step}

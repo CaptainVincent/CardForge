@@ -24,6 +24,7 @@ const txLabel = (t) => {
   if (t.currency) parts.push(t.currency);
   (t.channels || []).forEach((c) => parts.push(labelOf(CHANNEL_OPTIONS, c)));
   (t.categories || []).forEach((c) => parts.push(labelOf(CATEGORY_OPTIONS, c)));
+  if (t.merchant) parts.push(`@${t.merchant}`);
   if (t.paymentMethod) parts.push(labelOf(PM_OPTIONS, t.paymentMethod));
   return parts.join(' · ') || '一般消費';
 };
@@ -66,7 +67,7 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
   const sel = Math.min(idx, Math.max(cards.length - 1, 0));
   const fields = tab === 'compare' ? mergeFields(cardFields.length ? cardFields : [{}]) : (cardFields[sel] || {});
 
-  const [f, setF] = useState({ amount: 1000, region: null, currency: null, channels: [], categories: [], paymentMethod: null, periodSpend: '', custom: {}, hasFee: true });
+  const [f, setF] = useState({ amount: 1000, region: null, currency: null, channels: [], categories: [], merchant: null, paymentMethod: null, periodSpend: '', custom: {}, hasFee: true });
   const set = (patch) => setF((s) => ({ ...s, ...patch }));
   const toggle = (key, v) => setF((s) => ({ ...s, [key]: s[key].includes(v) ? s[key].filter((x) => x !== v) : [...s[key], v] }));
 
@@ -76,6 +77,7 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
     if (f.currency) t.currency = f.currency;
     if (f.channels.length) t.channels = f.channels;
     if (f.categories.length) t.categories = f.categories;
+    if (f.merchant) t.merchant = f.merchant;
     if (f.paymentMethod) t.paymentMethod = f.paymentMethod;
     t.hasFee = f.hasFee;
     return t;
@@ -163,6 +165,15 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
               )}
               {fields.channels?.length > 0 && <Chips label="通路" opts={fields.channels} values={f.channels} optionList={CHANNEL_OPTIONS} onToggle={(v) => toggle('channels', v)} />}
               {fields.categories?.length > 0 && <Chips label="類別 / MCC" opts={fields.categories} values={f.categories} optionList={CATEGORY_OPTIONS} onToggle={(v) => toggle('categories', v)} />}
+              {fields.merchants?.length > 0 && (
+                <label className="block">
+                  <span className="cf-field-label">指定特店</span>
+                  <select className="cf-select" value={f.merchant || ''} onChange={(e) => set({ merchant: e.target.value || null })}>
+                    <option value="">不限</option>
+                    {fields.merchants.map((mc) => <option key={mc} value={mc}>{mc}</option>)}
+                  </select>
+                </label>
+              )}
               {fields.paymentMethods?.length > 0 && (
                 <label className="block">
                   <span className="cf-field-label">支付方式</span>

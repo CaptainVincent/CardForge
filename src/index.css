@@ -328,6 +328,33 @@ body {
   font-weight: 500;
   color: var(--cf-text-dim);
 }
+.cf-hint {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 14px; height: 14px; margin-left: 4px; vertical-align: middle;
+  border: 1px solid var(--cf-border-strong); border-radius: 9999px;
+  font-size: 9px; line-height: 1; color: var(--cf-text-faint);
+  cursor: help; user-select: none;
+}
+.cf-hint:hover { color: var(--cf-text-dim); border-color: var(--cf-text-faint); }
+.cf-hint__tip {
+  position: fixed;
+  transform: translateX(-50%);
+  max-width: 240px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--cf-elevated);
+  border: 1px solid var(--cf-border-strong);
+  color: var(--cf-text-dim);
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: 0;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  z-index: 100;
+  pointer-events: none;
+}
 .cf-input,
 .cf-select {
   width: 100%;
@@ -437,3 +464,13 @@ body {
   stroke: var(--cf-accent) !important;
   stroke-width: 2 !important;
 }
+.cf-edge-tools { position: absolute; display: flex; align-items: center; gap: 4px; pointer-events: all; }
+.cf-edge-label { background: var(--cf-panel); color: var(--cf-text-dim); font-size: 10px; line-height: 1; padding: 2px 5px; border-radius: 5px; border: 1px solid var(--cf-border); }
+.cf-edge-del {
+  display: flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 9999px;
+  background: var(--cf-panel); border: 1px solid var(--cf-border-strong);
+  color: var(--cf-text-faint); font-size: 13px; line-height: 1; cursor: pointer;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18); transition: color 0.12s, border-color 0.12s;
+}
+.cf-edge-del:hover { color: #d4503a; border-color: #d4503a; }

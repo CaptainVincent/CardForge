@@ -16,7 +16,11 @@ import { nodeAccent, NODE_MENU } from './nodes/registry';
 import Inspector from './inspector/Inspector';
 import Toolbar from './components/Toolbar';
 import DropMenu from './components/DropMenu';
+import DeletableEdge from './components/DeletableEdge';
+
+const edgeTypes = { default: DeletableEdge };
 import PreviewModal from './components/PreviewModal';
+import ImportModal from './components/ImportModal';
 import AnalyzePanel from './components/AnalyzePanel';
 import LintPanel from './components/LintPanel';
 import SampleGallery from './components/SampleGallery';
@@ -43,6 +47,8 @@ function FlowEditor() {
   const importGraph = useFlowStore((s) => s.importGraph);
   const setSelected = useFlowStore((s) => s.setSelected);
   const duplicateNode = useFlowStore((s) => s.duplicateNode);
+  const copySubtree = useFlowStore((s) => s.copySubtree);
+  const pasteClipboard = useFlowStore((s) => s.pasteClipboard);
   const addConnectedNode = useFlowStore((s) => s.addConnectedNode);
   const setNodes = useFlowStore((s) => s.setNodes);
   const reset = useFlowStore((s) => s.reset);
@@ -56,6 +62,7 @@ function FlowEditor() {
   const [showTest, setShowTest] = useState(false);
   const [showLint, setShowLint] = useState(false);
   const [showSamples, setShowSamples] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   const pointPrograms = useSettings((s) => s.pointPrograms);
@@ -177,30 +184,29 @@ function FlowEditor() {
     toast.success('已自動排版');
   }, [setNodes, fitView]);
 
-  const handleImportFile = useCallback((file) => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const { nodes: newNodes, edges: newEdges, pointPrograms } = importFromJson(JSON.parse(ev.target.result));
-        importGraph(layoutGraph(newNodes, newEdges), newEdges);
-        useSettings.getState().mergePointPrograms(pointPrograms);
-        setTimeout(() => fitView({ duration: 300 }), 60);
-        toast.success(`已匯入 ${newNodes.length} 個節點`);
-      } catch (err) {
-        toast.error('JSON 解析失敗：' + err.message);
-      }
-    };
-    reader.readAsText(file);
-  }, [importGraph, fitView]);
-
-  const loadSample = useCallback((sample) => {
-    const { nodes: nn, edges: ee, pointPrograms } = importFromJson(sample.db);
+  // Single import path: every source (file / paste / url / sample) parses to a
+  // db object then flows through here.
+  const applyDb = useCallback((db, successMsg) => {
+    const { nodes: nn, edges: ee, pointPrograms } = importFromJson(db);
     importGraph(layoutGraph(nn, ee), ee);
     useSettings.getState().mergePointPrograms(pointPrograms);
-    setShowSamples(false);
     setTimeout(() => fitView({ duration: 300 }), 60);
-    toast.success(`已載入範例：${sample.name}`);
+    toast.success(successMsg ?? `已匯入 ${nn.length} 個節點`);
   }, [importGraph, fitView]);
+
+  const handleImportText = useCallback((text) => {
+    try {
+      applyDb(JSON.parse(text));
+      setShowImport(false);
+    } catch (err) {
+      toast.error('JSON 解析失敗：' + err.message);
+    }
+  }, [applyDb]);
+
+  const loadSample = useCallback((sample) => {
+    applyDb(sample.db, `已載入範例：${sample.name}`);
+    setShowSamples(false);
+  }, [applyDb]);
 
   const handleLoadSample = useCallback((sample) => {
     const { nodes: n, edges: e } = useFlowStore.getState();
@@ -231,7 +237,20 @@ function FlowEditor() {
     setPreviewJson(JSON.stringify(json, null, 2));
   }, []);
 
-  useKeyboardShortcuts({ onDuplicate: duplicateNode, onExport: handleExport });
+  const duplicateSelected = useCallback(() => {
+    const id = useFlowStore.getState().selectedNodeId;
+    if (id) duplicateNode(id);
+  }, [duplicateNode]);
+  const handleCopy = useCallback((id) => {
+    const n = copySubtree(id);
+    if (n) toast.success(`已複製 ${n} 個節點（含子樹）`);
+  }, [copySubtree]);
+  const handlePaste = useCallback((targetId) => {
+    const root = pasteClipboard(targetId);
+    if (root) { toast.success('已貼上'); setTimeout(() => fitView({ duration: 300 }), 60); }
+    else toast('剪貼簿是空的，先按 ⌘C 複製一個節點');
+  }, [pasteClipboard, fitView]);
+  useKeyboardShortcuts({ onDuplicate: duplicateNode, onCopy: handleCopy, onPaste: handlePaste, onExport: handleExport });
 
   return (
     <div className="flex h-dvh flex-col bg-[var(--cf-canvas)]">
@@ -247,7 +266,8 @@ function FlowEditor() {
         onRedo={() => useTemporalStore.getState().redo()}
         onLayout={handleLayout}
         onReset={handleReset}
-        onImportFile={handleImportFile}
+        onDuplicate={duplicateSelected}
+        onOpenImport={() => setShowImport(true)}
         onOpenSamples={() => setShowSamples(true)}
         onAnalyze={() => setShowTest(true)}
         onPreview={handlePreview}
@@ -268,12 +288,14 @@ function FlowEditor() {
             onPaneClick={() => setDropMenu(null)}
             isValidConnection={isValidConnection}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             deleteKeyCode={['Delete', 'Backspace']}
             fitView
             fitViewOptions={{ maxZoom: 1, padding: 0.3 }}
             snapToGrid
             snapGrid={[20, 20]}
             defaultEdgeOptions={{ type: 'default' }}
+            proOptions={{ hideAttribution: true }}
           >
             <Background color={isDark ? '#2a2d33' : '#d8d3c8'} gap={22} size={1.5} />
             <Controls className="!rounded-lg !overflow-hidden !border !border-[var(--cf-border)] !shadow-lg [&>button]:!bg-[var(--cf-surface)] [&>button]:!border-[var(--cf-border)] [&>button]:!text-[var(--cf-text-dim)] [&>button:hover]:!bg-[var(--cf-surface-hover)] [&>button:hover]:!text-[var(--cf-text)]" />
@@ -292,7 +314,7 @@ function FlowEditor() {
             </Panel>
           </ReactFlow>
 
-          <DropMenu menu={dropMenu} onPick={pickFromDropMenu} />
+          <DropMenu menu={dropMenu} onPick={pickFromDropMenu} onClose={() => setDropMenu(null)} />
         </div>
 
         <Inspector />
@@ -307,6 +329,9 @@ function FlowEditor() {
       )}
       {showLint && (
         <LintPanel issues={issues} onFocus={focusNode} onClose={() => setShowLint(false)} />
+      )}
+      {showImport && (
+        <ImportModal onClose={() => setShowImport(false)} onSubmitText={handleImportText} />
       )}
       {showSamples && (
         <SampleGallery onLoad={handleLoadSample} onClose={() => setShowSamples(false)} />

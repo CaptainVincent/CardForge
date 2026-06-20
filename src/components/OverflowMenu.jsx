@@ -1,17 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
+import { useDismiss } from '../hooks/useDismiss';
 
-// A named dropdown menu (trigger + popover). Closes on outside click.
+// A named dropdown menu (trigger + popover). Closes on Esc or outside click.
 // Items: { label, onClick, dot?, hint?, danger? }
 export default function OverflowMenu({ trigger, title, items, align = 'right' }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', onDown);
-    return () => document.removeEventListener('mousedown', onDown);
-  }, [open]);
+  useDismiss(ref, () => setOpen(false), open);
 
   return (
     <div className="relative" ref={ref}>

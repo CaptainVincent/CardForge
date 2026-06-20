@@ -1,10 +1,16 @@
+import { useRef } from 'react';
 import { NODE_MENU } from '../nodes/registry';
+import { useDismiss } from '../hooks/useDismiss';
 
 // Appears when a connection is dropped on empty space; offers valid next types.
-export default function DropMenu({ menu, onPick }) {
+// Closes on Esc or outside click, like every other popover.
+export default function DropMenu({ menu, onPick, onClose }) {
+  const ref = useRef(null);
+  useDismiss(ref, onClose, !!menu);
   if (!menu) return null;
   return (
     <div
+      ref={ref}
       className="cf-drop-menu fixed z-50 rounded-xl border p-1.5 shadow-2xl"
       style={{
         left: menu.screenX,

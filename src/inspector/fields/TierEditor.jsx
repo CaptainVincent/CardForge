@@ -1,17 +1,21 @@
-// Repeatable spend-tier rows: cumulative spend ≥ N → rate %.
-// Covers 級距 (永豐式 滿1萬→10%) and multipliers (a single row).
-export default function TierEditor({ tiers = [], onChange }) {
+// Repeatable tier rows shared by two modes:
+//  spend    — cumulative spend ≥ N → single rate (取最高符合;永豐式 滿1萬→10%)
+//  marginal — 超過 N 的金額才套該段費率 (超額累進;各段分別計)
+export default function TierEditor({ tiers = [], onChange, mode = 'spend' }) {
   const update = (i, patch) => onChange(tiers.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
   const add = () => onChange([...tiers, { minSpend: null, rate: null }]);
   const remove = (i) => onChange(tiers.filter((_, idx) => idx !== i));
+  const marginal = mode === 'marginal';
 
   return (
     <div>
-      <span className="cf-field-label">消費級距（累計達標套用，取最高符合）</span>
+      <span className="cf-field-label">
+        {marginal ? '超額累進（每段金額各套自己的費率）' : '消費級距（累計達標套用，取最高符合）'}
+      </span>
       <div className="mt-1.5 space-y-2">
         {tiers.map((t, i) => (
           <div key={i} className="flex items-center gap-1.5">
-            <span className="text-[11px] text-[var(--cf-text-faint)]">累計≥</span>
+            <span className="text-[11px] text-[var(--cf-text-faint)]">{marginal ? '超過' : '累計≥'}</span>
             <input
               type="number"
               className="cf-input !mt-0"

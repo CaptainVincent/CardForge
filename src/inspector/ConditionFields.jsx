@@ -1,7 +1,9 @@
 import SegmentedControl from './fields/SegmentedControl';
 import ChipMultiSelect from './fields/ChipMultiSelect';
+import MerchantField from './fields/MerchantField';
 import NumberField from './fields/NumberField';
 import CustomPredicateEditor from './fields/CustomPredicateEditor';
+import FieldGroup from './fields/FieldGroup';
 import { CURRENCY_OPTIONS, CHANNEL_OPTIONS, CATEGORY_OPTIONS, PM_OPTIONS, REGION_OPTIONS } from '../lib/options';
 import { useFlowStore } from '../store/flowStore';
 
@@ -10,6 +12,9 @@ const POLARITY_OPTIONS = [
   { value: true, label: '排除 (NOT)' },
 ];
 
+// Fields grouped by the axis they describe, so the structure reads at a glance
+// and new conditions have an obvious home (vs a flat list). 消費對象 = 買什麼/在哪買
+// (類別=類型、特店=實例);支付與通路 = 怎麼付;情境 = 其他限定。
 export default function ConditionFields({ data, update }) {
   const customOptions = useFlowStore((s) => s.customOptions);
   const addCustomOption = useFlowStore((s) => s.addCustomOption);
@@ -22,54 +27,69 @@ export default function ConditionFields({ data, update }) {
         options={POLARITY_OPTIONS}
         onChange={(v) => update({ negate: v })}
       />
-      <SegmentedControl
-        label="消費地區"
-        value={data.isOverseas ?? null}
-        options={REGION_OPTIONS}
-        onChange={(v) => update({ isOverseas: v })}
-      />
-      <ChipMultiSelect
-        label="幣別（多選）"
-        values={data.currencies || []}
-        options={CURRENCY_OPTIONS}
-        custom={customOptions.currencies}
-        onChange={(v) => update({ currencies: v })}
-        onAddCustom={(l) => addCustomOption('currencies', l)}
-      />
-      <ChipMultiSelect
-        label="通路"
-        values={data.channels || []}
-        options={CHANNEL_OPTIONS}
-        custom={customOptions.channels}
-        onChange={(v) => update({ channels: v })}
-        onAddCustom={(l) => addCustomOption('channels', l)}
-      />
-      <ChipMultiSelect
-        label="類別 / MCC"
-        values={data.categories || []}
-        options={CATEGORY_OPTIONS}
-        custom={customOptions.categories}
-        onChange={(v) => update({ categories: v })}
-        onAddCustom={(l) => addCustomOption('categories', l)}
-      />
-      <ChipMultiSelect
-        label="支付方式"
-        values={data.paymentMethods || []}
-        options={PM_OPTIONS}
-        custom={customOptions.paymentMethods}
-        onChange={(v) => update({ paymentMethods: v })}
-        onAddCustom={(l) => addCustomOption('paymentMethods', l)}
-      />
-      <NumberField
-        label="單筆最低（TWD）"
-        value={data.minAmountTwd}
-        placeholder="不限"
-        onChange={(v) => update({ minAmountTwd: v })}
-      />
-      <CustomPredicateEditor
-        rules={data.custom || []}
-        onChange={(v) => update({ custom: v })}
-      />
+
+      <FieldGroup title="消費對象">
+        <ChipMultiSelect
+          label="類別 / MCC"
+          values={data.categories || []}
+          options={CATEGORY_OPTIONS}
+          custom={customOptions.categories}
+          onChange={(v) => update({ categories: v })}
+          onAddCustom={(l) => addCustomOption('categories', l)}
+        />
+        <MerchantField
+          values={data.merchants || []}
+          custom={customOptions.merchants}
+          onChange={(v) => update({ merchants: v })}
+          onAddCustom={(l) => addCustomOption('merchants', l)}
+        />
+      </FieldGroup>
+
+      <FieldGroup title="支付與通路">
+        <ChipMultiSelect
+          label="通路"
+          values={data.channels || []}
+          options={CHANNEL_OPTIONS}
+          custom={customOptions.channels}
+          onChange={(v) => update({ channels: v })}
+          onAddCustom={(l) => addCustomOption('channels', l)}
+        />
+        <ChipMultiSelect
+          label="支付方式"
+          values={data.paymentMethods || []}
+          options={PM_OPTIONS}
+          custom={customOptions.paymentMethods}
+          onChange={(v) => update({ paymentMethods: v })}
+          onAddCustom={(l) => addCustomOption('paymentMethods', l)}
+        />
+      </FieldGroup>
+
+      <FieldGroup title="情境">
+        <SegmentedControl
+          label="消費地區"
+          value={data.isOverseas ?? null}
+          options={REGION_OPTIONS}
+          onChange={(v) => update({ isOverseas: v })}
+        />
+        <ChipMultiSelect
+          label="幣別（多選）"
+          values={data.currencies || []}
+          options={CURRENCY_OPTIONS}
+          custom={customOptions.currencies}
+          onChange={(v) => update({ currencies: v })}
+          onAddCustom={(l) => addCustomOption('currencies', l)}
+        />
+        <NumberField
+          label="單筆最低（TWD）"
+          value={data.minAmountTwd}
+          placeholder="不限"
+          onChange={(v) => update({ minAmountTwd: v })}
+        />
+        <CustomPredicateEditor
+          rules={data.custom || []}
+          onChange={(v) => update({ custom: v })}
+        />
+      </FieldGroup>
     </>
   );
 }

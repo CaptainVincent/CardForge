@@ -9,6 +9,7 @@ import AnyFields from './AnyFields';
 import RewardFields from './RewardFields';
 import LimitFields from './LimitFields';
 import GateFields from './GateFields';
+import TopFields from './TopFields';
 
 const FIELDS = {
   card: CardFields,
@@ -17,6 +18,7 @@ const FIELDS = {
   reward: RewardFields,
   limit: LimitFields,
   gate: GateFields,
+  top: TopFields,
 };
 
 export default function Inspector() {
@@ -46,6 +48,9 @@ export default function Inspector() {
         <MousePointerClick size={28} strokeWidth={1.5} className="mb-3 text-[var(--cf-text-faint)] opacity-50" />
         <p className="text-xs leading-relaxed text-[var(--cf-text-faint)]">
           點選畫布上的節點<br />在此編輯細節
+        </p>
+        <p className="mt-3 text-[10px] leading-relaxed text-[var(--cf-text-faint)] opacity-80">
+          Shift + 拖曳 可框選多個<br />一起移動或按 Delete 刪除
         </p>
       </aside>
     );

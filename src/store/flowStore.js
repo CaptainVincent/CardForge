@@ -3,6 +3,7 @@ import { temporal } from 'zundo';
 import { applyNodeChanges, applyEdgeChanges, addEdge } from '@xyflow/react';
 import { importFromJson } from '../lib/importJson';
 import { layoutGraph } from '../lib/autoLayout';
+import { isExpected } from '../lib/connectionRules';
 import { DEMO_DB } from '../lib/samples';
 
 const STORAGE_KEY = 'cardforge:graph:v1';
@@ -12,6 +13,45 @@ const defaultEdge = (params) => ({ ...params, type: 'default' });
 // ID generation lives outside React so it survives re-renders.
 let _idCounter = 100;
 const nextId = () => ++_idCounter;
+
+// A node + its downstream subtree (snapshotted), and a cloner with fresh ids.
+// Shared by duplicate (in-place) and copy/paste (cross-card).
+function subtreeOf(nodes, edges, rootId) {
+  const keep = new Set([rootId]);
+  const stack = [rootId];
+  while (stack.length) {
+    const cur = stack.pop();
+    for (const e of edges) if (e.source === cur && !keep.has(e.target)) { keep.add(e.target); stack.push(e.target); }
+  }
+  return {
+    subNodes: nodes.filter((n) => keep.has(n.id)).map((n) => ({ ...n, data: { ...n.data } })),
+    subEdges: edges.filter((e) => keep.has(e.source) && keep.has(e.target)).map((e) => ({ ...e })),
+  };
+}
+// Bounding box of a node set (positions + measured/estimated sizes).
+function bboxOf(nodes) {
+  let minX = Infinity; let minY = Infinity; let maxR = -Infinity; let maxB = -Infinity;
+  for (const n of nodes) {
+    const w = n.measured?.width ?? n.width ?? 200;
+    const h = n.measured?.height ?? n.height ?? 88;
+    minX = Math.min(minX, n.position.x); minY = Math.min(minY, n.position.y);
+    maxR = Math.max(maxR, n.position.x + w); maxB = Math.max(maxB, n.position.y + h);
+  }
+  return { minX, minY, width: maxR - minX, height: maxB - minY };
+}
+function cloneSubtree(subNodes, subEdges, rootId, dx, dy) {
+  const idMap = new Map();
+  const newNodes = subNodes.map((n) => {
+    const nid = `${n.type}-${nextId()}`;
+    idMap.set(n.id, nid);
+    return { ...n, id: nid, position: { x: n.position.x + dx, y: n.position.y + dy }, selected: n.id === rootId, data: { ...n.data } };
+  });
+  const newEdges = subEdges.map((e) => {
+    const s = idMap.get(e.source); const t = idMap.get(e.target);
+    return { ...e, id: `e-${s}-${t}`, source: s, target: t, selected: false };
+  });
+  return { newNodes, newEdges, newRootId: idMap.get(rootId) };
+}
 
 const INITIAL_NODES = [
   {
@@ -60,7 +100,8 @@ export const useFlowStore = create(
       selectedNodeId: null,
       // User-defined option extensions for condition chip fields, remembered
       // globally so a custom 悠遊付/PayPay is reusable across every node.
-      customOptions: persisted?.customOptions ?? { currencies: [], channels: [], categories: [], paymentMethods: [] },
+      customOptions: persisted?.customOptions ?? { currencies: [], channels: [], categories: [], merchants: [], paymentMethods: [] },
+      clipboard: null, // in-memory copy/paste buffer (transient: not persisted, not undone)
 
       onNodesChange: (changes) =>
         set((state) => ({ nodes: applyNodeChanges(changes, state.nodes) })),
@@ -118,23 +159,57 @@ export const useFlowStore = create(
           selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
         })),
 
+      // Duplicate a node + its downstream subtree in place (offset, selected).
       duplicateNode: (id) => {
-        const src = get().nodes.find((n) => n.id === id);
-        if (!src) return null;
-        const newId = `${src.type}-${nextId()}`;
+        const { nodes, edges } = get();
+        if (!nodes.some((n) => n.id === id)) return null;
+        const { subNodes, subEdges } = subtreeOf(nodes, edges, id);
+        // Drop the copy directly BELOW the source subtree (offset by its own
+        // height) so it never overlaps the original — no global re-layout.
+        const { newNodes, newEdges, newRootId } = cloneSubtree(subNodes, subEdges, id, 0, bboxOf(subNodes).height + 40);
         set((state) => ({
-          nodes: [
-            ...state.nodes,
-            {
-              ...src,
-              id: newId,
-              position: { x: src.position.x + 40, y: src.position.y + 40 },
-              selected: false,
-              data: { ...src.data },
-            },
-          ],
+          nodes: [...state.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), ...newNodes],
+          edges: [...state.edges, ...newEdges],
+          selectedNodeId: newRootId,
         }));
-        return newId;
+        return newRootId;
+      },
+
+      // Snapshot a node + subtree to an in-memory clipboard (not persisted).
+      copySubtree: (id) => {
+        const { nodes, edges } = get();
+        if (!nodes.some((n) => n.id === id)) return 0;
+        const { subNodes, subEdges } = subtreeOf(nodes, edges, id);
+        set({ clipboard: { subNodes, subEdges, rootId: id } });
+        return subNodes.length;
+      },
+
+      // Paste the clipboard. If `targetId` is a node the pasted root may legally
+      // attach to (e.g. another card), connect them; otherwise it floats free.
+      pasteClipboard: (targetId) => {
+        const { clipboard, nodes } = get();
+        if (!clipboard) return null;
+        const root = clipboard.subNodes.find((n) => n.id === clipboard.rootId);
+        const target = targetId && nodes.find((n) => n.id === targetId);
+        const willConnect = !!(target && root && isExpected(target.type, root.type));
+        // Connected → land the pasted root to the RIGHT of the target (LR flow);
+        // otherwise drop it below the copied block. Either way: clean, no overlap.
+        let dx; let dy;
+        if (willConnect) {
+          const tw = target.measured?.width ?? target.width ?? 200;
+          dx = (target.position.x + tw + 60) - root.position.x;
+          dy = target.position.y - root.position.y;
+        } else {
+          dx = 0; dy = bboxOf(clipboard.subNodes).height + 40;
+        }
+        const { newNodes, newEdges, newRootId } = cloneSubtree(clipboard.subNodes, clipboard.subEdges, clipboard.rootId, dx, dy);
+        const extra = willConnect ? [defaultEdge({ id: `e-${targetId}-${newRootId}`, source: targetId, target: newRootId })] : [];
+        set((state) => ({
+          nodes: [...state.nodes.map((n) => (n.selected ? { ...n, selected: false } : n)), ...newNodes],
+          edges: [...state.edges, ...newEdges, ...extra],
+          selectedNodeId: newRootId,
+        }));
+        return newRootId;
       },
 
       setNodes: (nodes) => set({ nodes }),
@@ -157,7 +232,7 @@ export const useFlowStore = create(
     }),
     {
       // Only graph data participates in undo/redo — not selection.
-      partialize: (state) => ({ nodes: state.nodes, edges: state.edges }),
+      partialize: (state) => ({ nodes: state.nodes, edges: state.edges, customOptions: state.customOptions }),
       limit: 100,
       equality: (a, b) => a.nodes === b.nodes && a.edges === b.edges,
       // Leading-edge throttle: capture the pre-burst snapshot once, then

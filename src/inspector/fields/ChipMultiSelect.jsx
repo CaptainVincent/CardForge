@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import InfoHint from './InfoHint';
 
 const normalize = (o) => (typeof o === 'string' ? { value: o, label: o } : o);
 
-export default function ChipMultiSelect({ label, values = [], options = [], custom = [], onChange, onAddCustom }) {
+export default function ChipMultiSelect({ label, values = [], options = [], custom = [], onChange, onAddCustom, hint }) {
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState('');
 
@@ -25,7 +26,7 @@ export default function ChipMultiSelect({ label, values = [], options = [], cust
 
   return (
     <div>
-      <span className="cf-field-label">{label}</span>
+      <span className="cf-field-label">{label}<InfoHint text={hint} /></span>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
         {all.map((o) => (
           <button
