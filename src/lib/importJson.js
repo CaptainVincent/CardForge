@@ -1,5 +1,5 @@
 /**
- * Convert ChristianWolff JSON → React Flow nodes + edges
+ * Convert CardForge JSON → React Flow nodes + edges
  */
 
 let _id = 0;
@@ -57,6 +57,7 @@ function importOneCard(json, nodes, edges, yBase) {
     if (m.is_overseas === false) parts.push('domestic');
     if (m.channels) parts.push('ch:' + m.channels.sort().join(','));
     if (m.categories) parts.push('cat:' + m.categories.sort().join(','));
+    if (m.merchants) parts.push('mer:' + [...m.merchants].sort().join(','));
     if (m.payment_methods) parts.push('pm:' + m.payment_methods.sort().join(','));
     if (m.custom) parts.push('cu:' + JSON.stringify(m.custom));
     if (m.exclude) parts.push('ex:' + JSON.stringify(m.exclude));
@@ -68,6 +69,9 @@ function importOneCard(json, nodes, edges, yBase) {
 
   let groupY = yBase + 40;
   const selectGroups = {}; // select_group id → [rewardId, ...]
+  const topGroups = {}; // top_group id → [rewardId, ...]
+  const topGroupConf = json.top_groups || {}; // top_group id → { k }
+  const poolLimitNodes = {}; // limit pool id → shared limit node id
 
   for (const group of Object.values(byMatch)) {
     const m = group.match;
@@ -83,6 +87,7 @@ function importOneCard(json, nodes, edges, yBase) {
         currencies: m.currencies || [],
         channels: m.channels || [],
         categories: m.categories || [],
+        merchants: m.merchants || [],
         paymentMethods: m.payment_methods || [],
         minAmountTwd: m.min_amount_twd || null,
         custom: importCustom(m.custom),
@@ -105,6 +110,7 @@ function importOneCard(json, nodes, edges, yBase) {
           currencies: ex.currencies || [],
           channels: ex.channels || [],
           categories: ex.categories || [],
+          merchants: ex.merchants || [],
           paymentMethods: ex.payment_methods || [],
           minAmountTwd: ex.min_amount_twd || null,
           custom: importCustom(ex.custom),
@@ -127,6 +133,7 @@ function importOneCard(json, nodes, edges, yBase) {
             currencies: sub.currencies || [],
             channels: sub.channels || [],
             categories: sub.categories || [],
+            merchants: sub.merchants || [],
             paymentMethods: sub.payment_methods || [],
             minAmountTwd: sub.min_amount_twd || null,
             custom: importCustom(sub.custom),
@@ -160,8 +167,8 @@ function importOneCard(json, nodes, edges, yBase) {
           rewardCurrency: r.reward_currency || 'TWD',
           perDollar: r.per_dollar || null,
           pointsPerUnit: r.points_per_unit ?? null,
-          tierMode: rule.tiers?.mode === 'spend' ? 'spend' : 'flat',
-          tiers: rule.tiers?.mode === 'spend'
+          tierMode: rule.tiers?.mode === 'spend' || rule.tiers?.mode === 'marginal' ? rule.tiers.mode : 'flat',
+          tiers: rule.tiers?.mode === 'spend' || rule.tiers?.mode === 'marginal'
             ? (rule.tiers.bands || []).map((b) => ({
                 minSpend: b.min_amount || 0,
                 rate: parseFloat(((b.rate || 0) * 100).toFixed(6)),
@@ -174,6 +181,8 @@ function importOneCard(json, nodes, edges, yBase) {
           startDate: rule.period?.start || null,
           endDate: rule.period?.end || null,
           requiresActivation: !!rule.requires_activation,
+          isActive: rule.is_active !== false,
+          note: rule.note || '',
         },
       });
 
@@ -196,27 +205,52 @@ function importOneCard(json, nodes, edges, yBase) {
         edges.push(edge(condSource, rewardId));
       }
 
-      // Limit node — caps only
-      const hasCaps = lim.max_reward_per_period || lim.max_reward_total || lim.max_reward_per_txn;
-      if (hasCaps) {
-        const limitId = nextId();
-        nodes.push({
-          id: limitId,
-          type: 'limit',
-          position: { x: 1080 + dx, y: ruleY },
-          data: {
-            cycle: lim.period?.cycle || rule.period?.cycle || 'monthly',
-            maxRewardPerPeriod: lim.max_reward_per_period || null,
-            maxRewardTotal: lim.max_reward_total || null,
-            maxRewardPerTxn: lim.max_reward_per_txn || null,
-          },
-        });
+      // Limit nodes — from new caps[] or legacy reward-only scalar keys. Group
+      // by pool|metric → one limit node each (pooled nodes shared across rules).
+      const ruleCaps = Array.isArray(rule.limits?.caps)
+        ? rule.limits.caps
+        : [
+            ...(lim.max_reward_per_txn ? [{ metric: 'reward', window: 'txn', max: lim.max_reward_per_txn }] : []),
+            ...(lim.max_reward_per_period ? [{ metric: 'reward', window: 'period', max: lim.max_reward_per_period }] : []),
+            ...(lim.max_reward_total ? [{ metric: 'reward', window: 'total', max: lim.max_reward_total }] : []),
+          ];
+      const capGroups = {};
+      for (const c of ruleCaps) {
+        const metric = c.metric || 'reward';
+        const key = c.pool ? `pool:${c.pool}` : `inline:${metric}`;
+        const g = (capGroups[key] = capGroups[key] || { pool: c.pool || null, metric, windows: {} });
+        g.windows[c.window || 'period'] = c.max;
+      }
+      let li = 0;
+      for (const g of Object.values(capGroups)) {
+        let limitId = g.pool ? poolLimitNodes[g.pool] : null;
+        if (!limitId) {
+          limitId = nextId();
+          nodes.push({
+            id: limitId,
+            type: 'limit',
+            position: { x: 1080 + dx + li * 40, y: ruleY + li * 12 },
+            data: {
+              metric: g.metric,
+              cycle: (g.pool && limitPools[g.pool]?.period?.cycle) || rule.period?.cycle || 'monthly',
+              maxPerTxn: g.windows.txn ?? null,
+              maxPerPeriod: g.windows.period ?? null,
+              maxTotal: g.windows.total ?? null,
+            },
+          });
+          if (g.pool) poolLimitNodes[g.pool] = limitId;
+          li++;
+        }
         edges.push(edge(rewardId, limitId));
       }
 
       // 擇優 group membership (rebuilt into a select node after the loop).
       const sg = rule.stacking?.select_group;
       if (sg) (selectGroups[sg] = selectGroups[sg] || []).push(rewardId);
+
+      // 取高 group membership (rebuilt into a top node after the loop).
+      const tg = rule.stacking?.top_group;
+      if (tg) (topGroups[tg] = topGroups[tg] || []).push(rewardId);
 
       ruleY += 200;
     }
@@ -233,10 +267,19 @@ function importOneCard(json, nodes, edges, yBase) {
     selY += 160;
   }
 
-  return Math.max(groupY, selY, yBase + 360);
+  // Rebuild one 取高 (top) node per group; K carried from top_groups config.
+  let topY = yBase + 40;
+  for (const [tgId, rewardIds] of Object.entries(topGroups)) {
+    const topId = nextId();
+    nodes.push({ id: topId, type: 'top', position: { x: 1500, y: topY }, data: { k: Math.max(1, Number(topGroupConf[tgId]?.k) || 1) } });
+    for (const rid of rewardIds) edges.push(edge(rid, topId));
+    topY += 160;
+  }
+
+  return Math.max(groupY, selY, topY, yBase + 360);
 }
 
-// Accepts a single ChristianWolff card ({card, rules}) or a database ({cards:[...]}).
+// Accepts a single CardForge card ({card, rules}) or a database ({cards:[...]}).
 export function importFromJson(json) {
   _id = 0;
   const nodes = [];

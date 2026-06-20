@@ -17,7 +17,7 @@ export function nodeIssues(node, edges) {
     if (!hasIncoming) issues.push('未連接來源');
     const hasContent = (a = {}) =>
       a.isOverseas != null || a.channels?.length || a.categories?.length ||
-      a.currencies?.length || a.paymentMethods?.length || a.minAmountTwd ||
+      a.merchants?.length || a.currencies?.length || a.paymentMethods?.length || a.minAmountTwd ||
       a.custom?.some((c) => c.field && c.value !== '' && c.value != null);
     const filled = (d.alternatives || []).filter(hasContent);
     if (filled.length < 2) issues.push('「任一」至少需要兩個有內容的替代條件');
@@ -29,10 +29,16 @@ export function nodeIssues(node, edges) {
     }
   }
 
+  if (node.type === 'top') {
+    if (edges.filter((e) => e.target === node.id).length < 2) {
+      issues.push('「取高」需連入兩個以上回饋(取當期消費最高)');
+    }
+  }
+
   if (node.type === 'reward') {
     const m = d.method || 'percentage';
     if (m === 'percentage') {
-      if (d.tierMode === 'spend') {
+      if (d.tierMode === 'spend' || d.tierMode === 'marginal') {
         if (!d.tiers?.some((t) => t.rate != null)) issues.push('未設定任何級距比率');
       } else if (!d.rate) {
         issues.push('未設定回饋率');
@@ -45,9 +51,8 @@ export function nodeIssues(node, edges) {
 
   if (node.type === 'limit') {
     if (!hasIncoming) issues.push('未連接回饋');
-    if (!d.maxRewardPerPeriod && !d.maxRewardTotal && !d.maxRewardPerTxn) {
-      issues.push('尚未設定任何上限');
-    }
+    const anyCap = (d.maxPerPeriod ?? d.maxRewardPerPeriod) || (d.maxTotal ?? d.maxRewardTotal) || (d.maxPerTxn ?? d.maxRewardPerTxn);
+    if (!anyCap) issues.push('尚未設定任何上限');
   }
 
   if (node.type === 'gate') {

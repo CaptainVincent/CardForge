@@ -1,5 +1,5 @@
 /**
- * Convert React Flow nodes + edges → ChristianWolff-compatible JSON.
+ * Convert React Flow nodes + edges → CardForge-compatible JSON.
  *
  * Topology model (matches the free-form editor):
  *  - A reward is gated by the chain of conditions on each path from the card.
@@ -9,7 +9,6 @@
  *    cap is POOLED: emitted once under `limit_pools` and referenced by each
  *    member rule via `limits.pool`.
  */
-import { sortByFrom } from './options';
 
 const slug = (s) => (s || '').toLowerCase().replace(/\s+/g, '-');
 
@@ -99,6 +98,7 @@ export function exportCard(cardNode, nodes, edges) {
       currencies: new Set(),
       channels: new Set(),
       categories: new Set(),
+      merchants: new Set(),
       paymentMethods: new Set(),
       custom: [],
     });
@@ -119,6 +119,7 @@ export function exportCard(cardNode, nodes, edges) {
       (d.currencies || []).forEach((x) => t.currencies.add(x));
       (d.channels || []).forEach((x) => t.channels.add(x));
       (d.categories || []).forEach((x) => t.categories.add(x));
+      (d.merchants || []).forEach((x) => t.merchants.add(x));
       (d.paymentMethods || []).forEach((x) => t.paymentMethods.add(x));
       (d.custom || []).forEach((p) => t.custom.push(p));
       if (d.minAmountTwd) t.minAmountTwd = Math.max(t.minAmountTwd || 0, d.minAmountTwd);
@@ -129,6 +130,7 @@ export function exportCard(cardNode, nodes, edges) {
       currencies: [...s.currencies],
       channels: [...s.channels],
       categories: [...s.categories],
+      merchants: [...s.merchants],
       paymentMethods: [...s.paymentMethods],
       custom: s.custom,
     });
@@ -149,6 +151,7 @@ export function exportCard(cardNode, nodes, edges) {
     if (m.currencies.length) o.currencies = m.currencies;
     if (m.channels.length) o.channels = m.channels;
     if (m.categories.length) o.categories = m.categories;
+    if (m.merchants?.length) o.merchants = m.merchants;
     if (m.paymentMethods.length) o.payment_methods = m.paymentMethods;
     if (m.minAmountTwd) o.min_amount_twd = m.minAmountTwd;
     const customs = (m.custom || [])
@@ -166,6 +169,7 @@ export function exportCard(cardNode, nodes, edges) {
       currencies: d.currencies || [],
       channels: d.channels || [],
       categories: d.categories || [],
+      merchants: d.merchants || [],
       paymentMethods: d.paymentMethods || [],
       custom: d.custom || [],
     });
@@ -179,8 +183,24 @@ export function exportCard(cardNode, nodes, edges) {
     if (sub.currencies) p.push(sub.currencies.join('/'));
     if (sub.channels) p.push(sub.channels.join('/'));
     if (sub.categories) p.push(sub.categories.join('/'));
+    if (sub.merchants) p.push(sub.merchants.join('/'));
     if (sub.payment_methods) p.push(sub.payment_methods.join('/'));
     return p.join('+');
+  }
+
+  // A limit node → its caps. metric (reward|spend|count) defaults to reward;
+  // window comes from which ceiling is set. New maxPer* fields preferred; legacy
+  // maxReward* read for back-compat (old graphs default to reward metric).
+  function nodeCaps(d) {
+    const metric = d.metric || 'reward';
+    const out = [];
+    const txn = d.maxPerTxn ?? d.maxRewardPerTxn;
+    const per = d.maxPerPeriod ?? d.maxRewardPerPeriod;
+    const tot = d.maxTotal ?? d.maxRewardTotal;
+    if (txn) out.push({ metric, window: 'txn', max: txn });
+    if (per) out.push({ metric, window: 'period', max: per });
+    if (tot) out.push({ metric, window: 'total', max: tot });
+    return out;
   }
 
   // Identify pooled limits: a limit node fed by >1 reward.
@@ -192,6 +212,7 @@ export function exportCard(cardNode, nodes, edges) {
   }
   const limitPools = {};
   const eligibilityPools = {};
+  const topGroups = {}; // top node id → { k } (members ranked by 當期消費)
 
   const rules = {};
   let ruleIndex = 0;
@@ -200,24 +221,18 @@ export function exportCard(cardNode, nodes, edges) {
     const chains = chainsInto(reward);
     if (chains.length === 0) continue; // unreachable from the card
 
-    const limitNode = outgoing(reward.id).find((n) => n.type === 'limit');
-    const pooled = limitNode && (limitFeeders.get(limitNode.id) || 0) > 1;
+    const limitNodes = outgoing(reward.id).filter((n) => n.type === 'limit');
     const selectNode = outgoing(reward.id).find((n) => n.type === 'select');
+    const topNode = outgoing(reward.id).find((n) => n.type === 'top');
+    if (topNode && !topGroups[topNode.id]) topGroups[topNode.id] = { k: Math.max(1, Number((topNode.data || {}).k) || 1) };
 
-    // Register a pool once.
-    let poolId = null;
-    if (pooled) {
-      poolId = `${slug(cardName)}-pool-${limitNode.id}`;
-      if (!limitPools[poolId]) {
-        const ld = limitNode.data || {};
-        limitPools[poolId] = {
-          period: { cycle: ld.cycle || 'monthly' },
-          ...(ld.maxRewardPerPeriod ? { max_reward_per_period: ld.maxRewardPerPeriod } : {}),
-          ...(ld.maxRewardTotal ? { max_reward_total: ld.maxRewardTotal } : {}),
-          members: [],
-        };
-      }
-    }
+    // Each limit node → a set of caps; pooled when fed by >1 reward (shared
+    // accumulator). A reward may carry several limit nodes (independent caps).
+    const limitInfos = limitNodes.map((ln) => {
+      const pool = (limitFeeders.get(ln.id) || 0) > 1 ? `${slug(cardName)}-pool-${ln.id}` : null;
+      if (pool && !limitPools[pool]) limitPools[pool] = { period: { cycle: (ln.data || {}).cycle || 'monthly' }, members: [] };
+      return { pool, caps: nodeCaps(ln.data || {}) };
+    });
 
     // Unlock gate(s) for this reward; shared gate (→ >1 reward) becomes a pool.
     const gate = ancestorGates(reward)[0];
@@ -236,7 +251,7 @@ export function exportCard(cardNode, nodes, edges) {
     for (const chain of chains) {
       const cd = mergeConditions(chain);
       const rd = reward.data || {};
-      const ld = limitNode?.data || {};
+      const ld = limitNodes[0]?.data || {};
       ruleIndex++;
       const id = `${slug(cardName)}-rule-${ruleIndex}`;
 
@@ -246,7 +261,7 @@ export function exportCard(cardNode, nodes, edges) {
         card: cardName,
         account,
         account_match: 'exact',
-        is_active: true,
+        is_active: rd.isActive !== false,
         period: { cycle: ld.cycle || 'monthly' },
         match: {},
         eligibility: {},
@@ -256,16 +271,16 @@ export function exportCard(cardNode, nodes, edges) {
           rate: (rd.method || 'percentage') === 'percentage' ? (rd.rate || 0) / 100 : 0,
         },
         tiers:
-          rd.method === 'percentage' && rd.tierMode === 'spend' && rd.tiers?.length
+          rd.method === 'percentage' && (rd.tierMode === 'spend' || rd.tierMode === 'marginal') && rd.tiers?.length
             ? {
-                mode: 'spend',
+                mode: rd.tierMode,
                 bands: rd.tiers
                   .filter((t) => t.minSpend != null || t.rate != null)
                   .map((t) => ({ min_amount: t.minSpend || 0, rate: (t.rate || 0) / 100 })),
               }
             : { mode: 'flat' },
         limits: {},
-        stacking: { layer: rd.layer || 'base', group: slug(cardName), ...(selectNode ? { select_group: selectNode.id } : {}) },
+        stacking: { layer: rd.layer || 'base', group: slug(cardName), ...(selectNode ? { select_group: selectNode.id } : {}), ...(topNode ? { top_group: topNode.id } : {}) },
         reward_posting: { account: `Income:CreditCard:Reward:${account.split(':').slice(-2).join(':')}` },
         provenance: { generated_by: 'cardforge' },
       };
@@ -292,15 +307,14 @@ export function exportCard(cardNode, nodes, edges) {
         rule.reward.point_name = rd.pointName;
       }
 
-      // Limits (caps) — pooled (reference) or inline
-      if (poolId) {
-        rule.limits.pool = poolId;
-        limitPools[poolId].members.push(id);
-      } else if (limitNode) {
-        if (ld.maxRewardPerPeriod) rule.limits.max_reward_per_period = ld.maxRewardPerPeriod;
-        if (ld.maxRewardTotal) rule.limits.max_reward_total = ld.maxRewardTotal;
-        if (ld.maxRewardPerTxn) rule.limits.max_reward_per_txn = ld.maxRewardPerTxn;
+      // Limits (caps) — one entry per (limit node × set window); pooled caps
+      // carry `pool` so a shared accumulator spans member rules.
+      const caps = [];
+      for (const li of limitInfos) {
+        for (const c of li.caps) caps.push(li.pool ? { ...c, pool: li.pool } : c);
+        if (li.pool) limitPools[li.pool].members.push(id);
       }
+      if (caps.length) rule.limits.caps = caps;
 
       // Eligibility (unlock gate) — pooled or inline
       if (gate) {
@@ -316,6 +330,9 @@ export function exportCard(cardNode, nodes, edges) {
           };
         }
       }
+
+      // Free-text caveat (engine-agnostic; 細則/備註 the model can't express precisely)
+      if (rd.note?.trim()) rule.note = rd.note.trim();
 
       // One-time settlement (首刷禮 / 里程碑)
       if (rd.settlement === 'once') rule.settlement = 'once';
@@ -333,6 +350,7 @@ export function exportCard(cardNode, nodes, edges) {
       if (inc.currencies.length) parts.push(inc.currencies.join('/'));
       if (inc.channels.length) parts.push(inc.channels.join('/'));
       if (inc.categories.length) parts.push(inc.categories.join('/'));
+      if (inc.merchants.length) parts.push(inc.merchants.join('/'));
       if (inc.paymentMethods.length) parts.push(inc.paymentMethods.join('/'));
       for (const g of cd.orGroups || []) {
         const lbls = g.map(subLabel).filter(Boolean);
@@ -340,7 +358,7 @@ export function exportCard(cardNode, nodes, edges) {
       }
       if (parts.length === 0) parts.push('一般消費');
       if (cd.exclude && Object.keys(buildMatch(cd.exclude)).length) {
-        const ex = [...cd.exclude.categories, ...cd.exclude.channels, ...cd.exclude.paymentMethods];
+        const ex = [...cd.exclude.categories, ...cd.exclude.merchants, ...cd.exclude.channels, ...cd.exclude.paymentMethods];
         if (ex.length) parts.push(`排除${ex.join('/')}`);
       }
 
@@ -366,6 +384,7 @@ export function exportCard(cardNode, nodes, edges) {
   };
   if (Object.keys(limitPools).length) result.limit_pools = limitPools;
   if (Object.keys(eligibilityPools).length) result.eligibility_pools = eligibilityPools;
+  if (Object.keys(topGroups).length) result.top_groups = topGroups;
   return result;
 }
 
@@ -391,7 +410,7 @@ function buildPointPrograms(cards, programs) {
     const valid = (p?.rates || []).filter((r) => r.rate != null && !Number.isNaN(Number(r.rate)));
     if (!valid.length) continue; // only export configured programs
     const prices = [...valid]
-      .sort(sortByFrom)
+      .sort((a, b) => (a.from || '').localeCompare(b.from || ''))
       .map((r) => ({ ...(r.from ? { from: r.from } : {}), twd_per_point: Number(r.rate) }));
     out[name] = { basis: p.basis || 'fixed', prices };
   }

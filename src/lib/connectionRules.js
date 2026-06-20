@@ -13,9 +13,10 @@ export const EXPECTED_TARGETS = {
   condition: ['condition', 'any', 'gate', 'reward'],
   any: ['condition', 'any', 'gate', 'reward'],
   gate: ['condition', 'any', 'gate', 'reward'],
-  reward: ['limit', 'select'],
+  reward: ['limit', 'select', 'top'],
   limit: [],
   select: [],
+  top: [],
 };
 
 export const isExpected = (s, t) => !!EXPECTED_TARGETS[s]?.includes(t);
@@ -26,6 +27,7 @@ export function edgeIssue(s, t) {
   if (t === 'card') return '卡片不能有輸入';
   if (t === 'limit') return '「上限」只能接在「回饋」之後';
   if (t === 'select') return '「擇優」只能由「回饋」連入（取最高）';
+  if (t === 'top') return '「取高」只能由「回饋」連入（取當期消費最高）';
   if (s === 'reward' && (t === 'condition' || t === 'gate')) return '「回饋」之後不應再接條件/門檻';
   if (s === 'reward' && t === 'reward') return '回饋不應串接回饋（疊加請各自連到卡片）';
   if (!NODE_TYPES[s]?.hasSource) return `「${nodeTitle(s)}」是終點,不能再往外接`;

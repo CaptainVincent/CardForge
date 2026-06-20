@@ -7,6 +7,10 @@ export { nodeTitle, nodeAccent } from '../nodes/registry';
 
 const num = (v) => Number(v).toLocaleString();
 
+// Compact a possibly-long value list for one-line summaries: show a couple of
+// concrete examples, then "等 N 個" so a 26-merchant list doesn't blow up the card.
+const listLabel = (arr) => (arr.length <= 2 ? arr.join('、') : `${arr[0]} 等 ${arr.length} 個`);
+
 export function cardSummary(d = {}) {
   return d.cardName?.trim() || '未命名卡片';
 }
@@ -18,6 +22,7 @@ export function conditionSummary(d = {}) {
   if (d.currencies?.length) parts.push(d.currencies.join('/'));
   if (d.channels?.length) parts.push(d.channels.map((c) => labelOf(CHANNEL_OPTIONS, c)).join('/'));
   if (d.categories?.length) parts.push(d.categories.map((c) => labelOf(CATEGORY_OPTIONS, c)).join('/'));
+  if (d.merchants?.length) parts.push(`特店 ${listLabel(d.merchants)}`);
   if (d.paymentMethods?.length) parts.push(d.paymentMethods.map((p) => labelOf(PM_OPTIONS, p)).join('/'));
   if (d.minAmountTwd) parts.push(`≥$${num(d.minAmountTwd)}`);
   for (const c of d.custom || []) {
@@ -36,6 +41,7 @@ const altLabel = (a = {}) => {
   if (a.currencies?.length) p.push(a.currencies.join('/'));
   if (a.channels?.length) p.push(a.channels.map((c) => labelOf(CHANNEL_OPTIONS, c)).join('/'));
   if (a.categories?.length) p.push(a.categories.map((c) => labelOf(CATEGORY_OPTIONS, c)).join('/'));
+  if (a.merchants?.length) p.push(`特店 ${listLabel(a.merchants)}`);
   if (a.paymentMethods?.length) p.push(a.paymentMethods.map((m) => labelOf(PM_OPTIONS, m)).join('/'));
   if (a.minAmountTwd) p.push(`≥$${num(a.minAmountTwd)}`);
   for (const c of a.custom || []) {
@@ -57,23 +63,34 @@ export function rewardSummary(d = {}) {
     value = `${d.rewardCurrency || 'TWD'} ${d.fixedAmount != null ? num(d.fixedAmount) : '?'}`;
   } else if (method === 'per_dollar') {
     value = d.perDollar ? `每 $${num(d.perDollar)} 送 ${d.pointsPerUnit ?? 1}` : '每 N 元送點';
-  } else if (d.tierMode === 'spend' && d.tiers?.length) {
+  } else if ((d.tierMode === 'spend' || d.tierMode === 'marginal') && d.tiers?.length) {
     const rates = d.tiers.map((t) => t.rate).filter((r) => r != null);
-    value = rates.length ? `級距 ${Math.min(...rates)}–${Math.max(...rates)}%` : '級距';
+    const word = d.tierMode === 'marginal' ? '累進' : '級距';
+    value = rates.length ? `${word} ${Math.min(...rates)}–${Math.max(...rates)}%` : word;
   } else {
     value = `${d.rate ?? 0}%`;
   }
   const layer = d.layer && d.layer !== 'base' ? `${labelOf(LAYERS, d.layer)} ` : '';
   const type = d.rewardType === 'points' ? `${d.pointName || '點數'} ` : '';
-  const once = d.settlement === 'once' ? ' · 一次性' : '';
-  return `${layer}${type}${value}${once}`.trim();
+  const once = d.settlement === 'once' ? ' · 里程碑' : '';
+  const off = d.isActive === false ? '（停用）' : '';
+  return `${off}${layer}${type}${value}${once}`.trim();
 }
 
 export function limitSummary(d = {}) {
+  const metric = d.metric || 'reward';
+  const per = d.maxPerPeriod ?? d.maxRewardPerPeriod;
+  const tot = d.maxTotal ?? d.maxRewardTotal;
+  const txn = d.maxPerTxn ?? d.maxRewardPerTxn;
+  const cyc = labelOf(CYCLES, d.cycle || 'monthly');
+  const label = (max, scope) =>
+    metric === 'spend' ? `${scope}前 $${num(max)} 消費`
+      : metric === 'count' ? `${scope}前 ${num(max)} 筆`
+        : `${scope}回饋上限 $${num(max)}`;
   const parts = [];
-  if (d.maxRewardPerPeriod) parts.push(`${labelOf(CYCLES, d.cycle || 'monthly')}上限 $${num(d.maxRewardPerPeriod)}`);
-  if (d.maxRewardTotal) parts.push(`總上限 $${num(d.maxRewardTotal)}`);
-  if (d.maxRewardPerTxn) parts.push(`單筆上限 $${num(d.maxRewardPerTxn)}`);
+  if (per) parts.push(label(per, cyc));
+  if (tot) parts.push(label(tot, '整段'));
+  if (txn && metric === 'reward') parts.push(`單筆 $${num(txn)}`);
   return parts.length ? parts.join(' · ') : '尚未設定';
 }
 
@@ -92,6 +109,7 @@ export function nodeSummary(node) {
     case 'limit': return limitSummary(d);
     case 'gate': return gateSummary(d);
     case 'select': return '擇優（取最高一個）';
+    case 'top': return `取高（當期消費最高 ${Math.max(1, Number(d.k) || 1)} 類）`;
     default: return '';
   }
 }

@@ -79,9 +79,17 @@ export const BASIS_OPTIONS = [
 // Chronological comparator for dated rate entries (baseline from===null first).
 export const sortByFrom = (a, b) => (a.from || '').localeCompare(b.from || '');
 
+// 上限度量:回饋金額 / 消費金額(前 $X) / 筆數(前 N 筆)。
+export const LIMIT_METRICS = [
+  { value: 'reward', label: '回饋' },
+  { value: 'spend', label: '消費' },
+  { value: 'count', label: '筆數' },
+];
+
 export const TIER_MODES = [
   { value: 'flat', label: '單一比率' },
   { value: 'spend', label: '消費級距' },
+  { value: 'marginal', label: '超額累進' },
 ];
 
 // Generic predicate operators — the "command block" that lets users author

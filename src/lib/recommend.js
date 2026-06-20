@@ -33,6 +33,7 @@ function triggerTx(rule, fixed) {
     currency: fixed.currency || null,
     channels: fixed.channels?.length ? [...fixed.channels] : [],
     categories: fixed.categories?.length ? [...fixed.categories] : [],
+    merchant: fixed.merchant || null,
     paymentMethod: fixed.paymentMethod || null,
     custom: { ...(fixed.custom || {}) },
   };
@@ -54,6 +55,10 @@ function triggerTx(rule, fixed) {
   if (m.categories?.length && !tx.categories.some((c) => m.categories.includes(c))) {
     if (fixed.categories?.length) return null;
     tx.categories.push(m.categories[0]); how.push(labelOf(CATEGORY_OPTIONS, m.categories[0]));
+  }
+  if (m.merchants?.length) {
+    if (tx.merchant && !m.merchants.includes(tx.merchant)) return null;
+    if (!tx.merchant) { tx.merchant = m.merchants[0]; how.push(m.merchants[0]); }
   }
   if (m.payment_methods?.length) {
     if (tx.paymentMethod && !m.payment_methods.includes(tx.paymentMethod)) return null;
@@ -83,6 +88,7 @@ function triggerTx(rule, fixed) {
       (!s.currencies?.length || (tx.currency && s.currencies.includes(tx.currency))) &&
       (!s.channels?.length || tx.channels.some((c) => s.channels.includes(c))) &&
       (!s.categories?.length || tx.categories.some((c) => s.categories.includes(c))) &&
+      (!s.merchants?.length || (tx.merchant && s.merchants.includes(tx.merchant))) &&
       (!s.payment_methods?.length || (tx.paymentMethod && s.payment_methods.includes(tx.paymentMethod))) &&
       (s.custom || []).every((c) => customHolds(c, tx.custom));
     if (group.some(holds)) continue;
@@ -92,6 +98,7 @@ function triggerTx(rule, fixed) {
       (s.currencies?.length && fixed.currency && !s.currencies.includes(fixed.currency)) ||
       (s.channels?.length && fixed.channels?.length && !tx.channels.some((c) => s.channels.includes(c))) ||
       (s.categories?.length && fixed.categories?.length && !tx.categories.some((c) => s.categories.includes(c))) ||
+      (s.merchants?.length && fixed.merchant && !s.merchants.includes(fixed.merchant)) ||
       (s.payment_methods?.length && fixed.paymentMethod && !s.payment_methods.includes(fixed.paymentMethod)) ||
       (s.custom || []).some((c) => fixed.custom?.[c.field] != null && !customHolds(c, fixed.custom));
 
@@ -101,6 +108,7 @@ function triggerTx(rule, fixed) {
     if (sub.currencies?.length && !tx.currency) { tx.currency = sub.currencies[0]; how.push(sub.currencies[0]); }
     if (sub.channels?.length && !tx.channels.some((c) => sub.channels.includes(c))) { tx.channels.push(sub.channels[0]); how.push(labelOf(CHANNEL_OPTIONS, sub.channels[0])); }
     if (sub.categories?.length && !tx.categories.some((c) => sub.categories.includes(c))) { tx.categories.push(sub.categories[0]); how.push(labelOf(CATEGORY_OPTIONS, sub.categories[0])); }
+    if (sub.merchants?.length && !tx.merchant) { tx.merchant = sub.merchants[0]; how.push(sub.merchants[0]); }
     if (sub.payment_methods?.length && !tx.paymentMethod) { tx.paymentMethod = sub.payment_methods[0]; how.push(labelOf(PM_OPTIONS, sub.payment_methods[0])); }
     for (const c of sub.custom || []) {
       if (tx.custom[c.field] != null) continue;
@@ -126,6 +134,7 @@ export function recommend(json, fixed, rates = {}) {
     currency: fixed.currency || null,
     channels: fixed.channels || [],
     categories: fixed.categories || [],
+    merchant: fixed.merchant || null,
     paymentMethod: fixed.paymentMethod || null,
     custom: fixed.custom || {},
   };
@@ -133,6 +142,7 @@ export function recommend(json, fixed, rates = {}) {
   options.push({ how: [], note: null, result: base, tx: baseTx });
 
   for (const rule of rules) {
+    if (rule.is_active === false) continue;
     const t = triggerTx(rule, fixed);
     if (!t) continue;
     const result = simulate(json, t.tx, rates);
