@@ -1,0 +1,328 @@
+{
+  "cards": [
+    {
+      "card": "永豐 幣倍卡",
+      "rounding": "floor",
+      "fx_fee_rate": 1.5,
+      "rules": {
+        "domestic": {
+          "id": "domestic",
+          "name": "永豐幣倍卡 國內消費 1%",
+          "card": "永豐 幣倍卡",
+          "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
+          "account_match": "exact",
+          "is_active": true,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "is_overseas": false
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "cashback",
+            "method": "percentage",
+            "rate": 0.01
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {},
+          "stacking": {
+            "layer": "base",
+            "group": "sinopac-dual",
+            "select_group": "base-earn"
+          }
+        },
+        "premium": {
+          "id": "premium",
+          "name": "永豐幣倍卡 保費 1.2%（MCC6300）",
+          "card": "永豐 幣倍卡",
+          "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
+          "account_match": "exact",
+          "is_active": true,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "custom": [
+              {
+                "field": "mcc",
+                "op": "is",
+                "value": "6300"
+              }
+            ]
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "cashback",
+            "method": "percentage",
+            "rate": 0.012
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {},
+          "stacking": {
+            "layer": "base",
+            "group": "sinopac-dual",
+            "select_group": "base-earn"
+          },
+          "note": "保費代繳(MCC 6300);與國內 1% 擇優取高"
+        },
+        "overseas": {
+          "id": "overseas",
+          "name": "永豐幣倍卡 國外消費 2%",
+          "card": "永豐 幣倍卡",
+          "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
+          "account_match": "exact",
+          "is_active": true,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "is_overseas": true
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "cashback",
+            "method": "percentage",
+            "rate": 0.02
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {},
+          "stacking": {
+            "layer": "base",
+            "group": "sinopac-dual"
+          },
+          "note": "國外回饋存入外幣帳戶"
+        },
+        "select4_l1": {
+          "id": "select4_l1",
+          "name": "永豐幣倍卡 必備加碼 精選通路 +4%（Level 1 月上限300）",
+          "card": "永豐 幣倍卡",
+          "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
+          "account_match": "exact",
+          "is_active": true,
+          "period": {
+            "cycle": "billing_cycle",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "or_groups": [
+              [
+                {
+                  "categories": [
+                    "drugstore",
+                    "travel"
+                  ]
+                },
+                {
+                  "merchants": [
+                    "Rakuten",
+                    "Amazon",
+                    "eBay",
+                    "淘寶",
+                    "Booking.com",
+                    "Agoda",
+                    "Klook",
+                    "KKday"
+                  ]
+                }
+              ]
+            ],
+            "custom": [
+              {
+                "field": "tier",
+                "op": "not_in",
+                "value": "L2"
+              }
+            ]
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "cashback",
+            "method": "percentage",
+            "rate": 0.04
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "period",
+                "max": 300
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-dual"
+          },
+          "note": "Level 1 月上限 300(預設):設臺外幣自動扣繳+電子/行動帳單。試算時 tier 留空或填 L1。精選通路另含國外實體/日本交通卡儲值/航空/旅行社,清單『等』未盡列"
+        },
+        "select4_l2": {
+          "id": "select4_l2",
+          "name": "永豐幣倍卡 必備加碼 精選通路 +4%（Level 2 月上限800）",
+          "card": "永豐 幣倍卡",
+          "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
+          "account_match": "exact",
+          "is_active": true,
+          "period": {
+            "cycle": "billing_cycle",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "or_groups": [
+              [
+                {
+                  "categories": [
+                    "drugstore",
+                    "travel"
+                  ]
+                },
+                {
+                  "merchants": [
+                    "Rakuten",
+                    "Amazon",
+                    "eBay",
+                    "淘寶",
+                    "Booking.com",
+                    "Agoda",
+                    "Klook",
+                    "KKday"
+                  ]
+                }
+              ]
+            ],
+            "custom": [
+              {
+                "field": "tier",
+                "op": "is",
+                "value": "L2"
+              }
+            ]
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "cashback",
+            "method": "percentage",
+            "rate": 0.04
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "period",
+                "max": 800
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-dual"
+          },
+          "note": "Level 2 月上限 800:Level 1 條件 + 大戶/大戶Plus 或前月資產月均≥10萬。試算時 tier 填 L2 即自動改套此上限(不必手動開關)"
+        },
+        "welcome_oversea": {
+          "id": "welcome_oversea",
+          "name": "永豐幣倍卡【限時新戶】國外實體 +4%（總上限300）",
+          "card": "永豐 幣倍卡",
+          "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
+          "account_match": "exact",
+          "is_active": false,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "is_overseas": true
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "cashback",
+            "method": "percentage",
+            "rate": 0.04
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "total",
+                "max": 300
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-dual"
+          },
+          "note": "新戶核卡90日內、每歸戶限1次;限國外實體消費"
+        },
+        "welcome_pay": {
+          "id": "welcome_pay",
+          "name": "永豐幣倍卡【限時新戶】綁Pay 20%（總上限500）",
+          "card": "永豐 幣倍卡",
+          "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
+          "account_match": "exact",
+          "is_active": false,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "payment_methods": [
+              "apple_pay",
+              "google_pay",
+              "samsung_pay",
+              "garmin_pay"
+            ]
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "cashback",
+            "method": "percentage",
+            "rate": 0.2
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "total",
+                "max": 500
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-dual"
+          },
+          "note": "限時新戶、限4400名、核卡45日內綁定、消費需核卡60日內請款"
+        }
+      }
+    }
+  ]
+}

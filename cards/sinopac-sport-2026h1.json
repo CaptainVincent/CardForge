@@ -1,0 +1,349 @@
+{
+  "cards": [
+    {
+      "card": "永豐 SPORT卡",
+      "rounding": "floor",
+      "fx_fee_rate": 1.5,
+      "rules": {
+        "base": {
+          "id": "base",
+          "name": "永豐SPORT卡 一般消費 1%豐點",
+          "card": "永豐 SPORT卡",
+          "account": "Liabilities:CreditCard:SinoPac:SPORT",
+          "account_match": "exact",
+          "is_active": true,
+          "period": {
+            "cycle": "monthly"
+          },
+          "match": {},
+          "eligibility": {},
+          "reward": {
+            "type": "points",
+            "method": "percentage",
+            "rate": 0.01,
+            "point_name": "豐點"
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {},
+          "stacking": {
+            "layer": "base",
+            "group": "sinopac-sport"
+          }
+        },
+        "sport": {
+          "id": "sport",
+          "name": "永豐SPORT卡 運動獎勵 +1%豐點（月上限50，需達標）",
+          "card": "永豐 SPORT卡",
+          "account": "Liabilities:CreditCard:SinoPac:SPORT",
+          "account_match": "exact",
+          "is_active": true,
+          "requires_activation": true,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {},
+          "eligibility": {},
+          "reward": {
+            "type": "points",
+            "method": "percentage",
+            "rate": 0.01,
+            "point_name": "豐點"
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "period",
+                "max": 50
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-sport"
+          }
+        },
+        "pay3pay": {
+          "id": "pay3pay",
+          "name": "永豐SPORT卡 指定支付 +3%豐點（共用月上限300）",
+          "card": "永豐 SPORT卡",
+          "account": "Liabilities:CreditCard:SinoPac:SPORT",
+          "account_match": "exact",
+          "is_active": true,
+          "requires_activation": true,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "payment_methods": [
+              "apple_pay",
+              "google_pay",
+              "samsung_pay",
+              "garmin_pay"
+            ]
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "points",
+            "method": "percentage",
+            "rate": 0.03,
+            "point_name": "豐點"
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "period",
+                "max": 300,
+                "pool": "sinopac-sport-bonus3"
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-sport"
+          }
+        },
+        "pay3merch": {
+          "id": "pay3merch",
+          "name": "永豐SPORT卡 指定特店/通路 +3%豐點（共用月上限300）",
+          "card": "永豐 SPORT卡",
+          "account": "Liabilities:CreditCard:SinoPac:SPORT",
+          "account_match": "exact",
+          "is_active": true,
+          "requires_activation": true,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "merchants": [
+              "World Gym",
+              "健身工廠",
+              "Welltivity",
+              "喬山生機",
+              "Curves",
+              "台北市運動中心",
+              "新北市運動中心",
+              "摩曼頓",
+              "Anytime Fitness",
+              "超核心健身中心",
+              "DAZN",
+              "屈臣氏",
+              "康是美",
+              "寶雅",
+              "好心肝健檢中心",
+              "杏一藥局",
+              "大樹藥局",
+              "丁丁藥局",
+              "新高橋藥局",
+              "App Store",
+              "Google Play",
+              "Nintendo",
+              "PlayStation",
+              "Steam"
+            ]
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "points",
+            "method": "percentage",
+            "rate": 0.03,
+            "point_name": "豐點"
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "period",
+                "max": 300,
+                "pool": "sinopac-sport-bonus3"
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-sport"
+          }
+        },
+        "pay3josan": {
+          "id": "pay3josan",
+          "name": "永豐SPORT卡 喬山健康科技(限實體門市) +3%豐點（共用月上限300）",
+          "card": "永豐 SPORT卡",
+          "account": "Liabilities:CreditCard:SinoPac:SPORT",
+          "account_match": "exact",
+          "is_active": true,
+          "requires_activation": true,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "merchants": [
+              "喬山健康科技"
+            ],
+            "channels": [
+              "實體門市"
+            ]
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "points",
+            "method": "percentage",
+            "rate": 0.03,
+            "point_name": "豐點"
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "period",
+                "max": 300,
+                "pool": "sinopac-sport-bonus3"
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-sport"
+          },
+          "note": "限街邊實體門市"
+        },
+        "pay3nuli": {
+          "id": "pay3nuli",
+          "name": "永豐SPORT卡 Nuli女力APP(限官網訂閱) +3%豐點（共用月上限300）",
+          "card": "永豐 SPORT卡",
+          "account": "Liabilities:CreditCard:SinoPac:SPORT",
+          "account_match": "exact",
+          "is_active": true,
+          "requires_activation": true,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "merchants": [
+              "Nuli女力APP"
+            ],
+            "channels": [
+              "官網"
+            ]
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "points",
+            "method": "percentage",
+            "rate": 0.03,
+            "point_name": "豐點"
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "period",
+                "max": 300,
+                "pool": "sinopac-sport-bonus3"
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-sport"
+          },
+          "note": "限官網刷卡訂閱"
+        },
+        "welcome": {
+          "id": "welcome",
+          "name": "永豐SPORT卡【限時新戶】綁Pay 20%刷卡金（總上限500；2026/1/1-6/30、限1800名）",
+          "card": "永豐 SPORT卡",
+          "account": "Liabilities:CreditCard:SinoPac:SPORT",
+          "account_match": "exact",
+          "is_active": false,
+          "period": {
+            "cycle": "monthly",
+            "start": "2026-01-01",
+            "end": "2026-06-30"
+          },
+          "match": {
+            "payment_methods": [
+              "apple_pay",
+              "google_pay",
+              "samsung_pay",
+              "garmin_pay"
+            ]
+          },
+          "eligibility": {},
+          "reward": {
+            "type": "cashback",
+            "method": "percentage",
+            "rate": 0.2
+          },
+          "tiers": {
+            "mode": "flat"
+          },
+          "limits": {
+            "caps": [
+              {
+                "metric": "reward",
+                "window": "total",
+                "max": 500
+              }
+            ]
+          },
+          "stacking": {
+            "layer": "bonus",
+            "group": "sinopac-sport"
+          },
+          "note": "限時新戶:核卡45日內綁Pay、限1800名"
+        }
+      },
+      "limit_pools": {
+        "sinopac-sport-bonus3": {
+          "period": {
+            "cycle": "monthly"
+          },
+          "members": [
+            "pay3pay",
+            "pay3merch",
+            "pay3josan",
+            "pay3nuli"
+          ]
+        }
+      }
+    }
+  ],
+  "point_programs": {
+    "豐點": {
+      "basis": "fixed",
+      "prices": [
+        {
+          "twd_per_point": 1
+        }
+      ]
+    }
+  }
+}
