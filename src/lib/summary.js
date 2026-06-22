@@ -99,6 +99,12 @@ export function gateSummary(d = {}) {
   return `${labelOf(CYCLES, d.cycle || 'monthly')}滿 ${d.currency || 'TWD'} ${num(d.threshold)}`;
 }
 
+export function eligibilitySummary(d = {}) {
+  if (!d.name?.trim()) return '尚未命名資格';
+  const state = d.default === true ? '符合' : d.default === false ? '未符合' : '未選';
+  return `${d.name.trim()}（預設${state}）`;
+}
+
 export function nodeSummary(node) {
   const d = node?.data || {};
   switch (node?.type) {
@@ -108,7 +114,8 @@ export function nodeSummary(node) {
     case 'reward': return rewardSummary(d);
     case 'limit': return limitSummary(d);
     case 'gate': return gateSummary(d);
-    case 'select': return '擇優（取最高一個）';
+    case 'eligibility': return eligibilitySummary(d);
+    case 'select': return d.mode === 'pick' ? '自選（指定一條）' : d.mode === 'best' ? '擇優（自動取最高）' : '尚未選擇選法';
     case 'top': return `取高（當期消費最高 ${Math.max(1, Number(d.k) || 1)} 類）`;
     default: return '';
   }

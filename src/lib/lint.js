@@ -3,8 +3,9 @@
 // warns, never blocks. Severity: 'error' (rule won't work) | 'warning'.
 import { nodeTitle } from '../nodes/registry';
 import { edgeIssue } from './connectionRules';
-import { exportCards } from './exportJson';
+import { exportCard } from './exportJson';
 import { nodeIssues } from './validate';
+import { forwardReachable } from './graph.js';
 
 export function lintGraph(nodes, edges, pointPrograms = {}) {
   const issues = [];
@@ -27,12 +28,7 @@ export function lintGraph(nodes, edges, pointPrograms = {}) {
   }
 
   // Orphans: every non-card node must be reachable downstream from some card.
-  const reachable = new Set(cards.map((c) => c.id));
-  const stack = [...reachable];
-  while (stack.length) {
-    const id = stack.pop();
-    for (const e of edges) if (e.source === id && !reachable.has(e.target)) { reachable.add(e.target); stack.push(e.target); }
-  }
+  const reachable = forwardReachable(cards.map((c) => c.id), edges);
   for (const n of nodes) {
     if (n.type !== 'card' && !reachable.has(n.id)) {
       issues.push({ id: `orphan-${n.id}`, severity: 'error', message: `${nodeTitle(n.type)}未連接到任何卡片,匯出時會被忽略`, nodeId: n.id });
@@ -64,22 +60,67 @@ export function lintGraph(nodes, edges, pointPrograms = {}) {
   if (cyc) issues.push({ id: 'cycle', severity: 'warning', message: '偵測到循環連線,邏輯不通', nodeId: cyc });
 
   // Impossible matches: a rule that both requires and excludes the same value.
-  for (const cj of exportCards(nodes, edges)) {
+  // The conflict is computed from the merged export (authoritative), but the FIX
+  // lives on the CONDITION nodes — so we map each conflicting value back to the
+  // condition nodes in that card's subtree that mention it (relatedIds). Clicking
+  // then frames+highlights exactly the nodes to reconcile (no single fix node).
+  const DATA_FIELD = { currencies: 'currencies', channels: 'channels', categories: 'categories', payment_methods: 'paymentMethods', merchants: 'merchants' };
+  for (const card of cards) {
+    const cj = exportCard(card, nodes, edges);
+    if (!cj) continue;
+    const subIds = forwardReachable([card.id], edges);
+    const conds = nodes.filter((n) => n.type === 'condition' && subIds.has(n.id));
+    const condsWith = (field, vals) => conds.filter((n) => (n.data?.[field] || []).some((v) => vals.includes(v))).map((n) => n.id);
+    const condsRegion = (val) => conds.filter((n) => n.data?.isOverseas === val).map((n) => n.id);
     for (const rule of Object.values(cj.rules)) {
       const m = rule.match || {};
       const ex = m.exclude;
       if (!ex) continue;
-      for (const f of ['currencies', 'channels', 'categories', 'payment_methods']) {
+      for (const f of ['currencies', 'channels', 'categories', 'payment_methods', 'merchants']) {
         const overlap = (m[f] || []).filter((x) => (ex[f] || []).includes(x));
-        if (overlap.length) issues.push({ id: `imposs-${rule.id}-${f}`, severity: 'error', message: `規則「${rule.name}」同時要求並排除「${overlap.join('/')}」,永不命中` });
+        if (overlap.length) issues.push({ id: `imposs-${rule.id}-${f}`, severity: 'error', message: `規則「${rule.name}」同時要求並排除「${overlap.join('/')}」,永不命中`, relatedIds: condsWith(DATA_FIELD[f], overlap) });
       }
+      if (m.is_overseas != null && ex.is_overseas === m.is_overseas) {
+        issues.push({ id: `imposs-${rule.id}-region`, severity: 'error', message: `規則「${rule.name}」同時要求並排除「${m.is_overseas ? '海外' : '國內'}」,永不命中`, relatedIds: condsRegion(m.is_overseas) });
+      }
+    }
+  }
+
+  // Cross-node misconfig: a construct REFERENCES a card-level field the card
+  // lacks. The introducing nodes (cause) and the field to fill (fix) live apart,
+  // so the issue carries BOTH — nodeId = the card (where you fix it), relatedIds
+  // = the nodes that triggered it (so clicking frames+highlights the whole set).
+  for (const c of cards) {
+    const sub = forwardReachable([c.id], edges);
+    const idsInCard = (pred) => nodes.filter((n) => sub.has(n.id) && pred(n)).map((n) => n.id);
+    const billing = idsInCard((n) => (n.type === 'limit' || n.type === 'gate') && n.data?.cycle === 'billing_cycle');
+    if (!c.data?.statementDay && billing.length) {
+      issues.push({ id: `nostmt-${c.id}`, severity: 'warning', message: `有 ${billing.length} 個上限/門檻用「帳單週期」,但此卡未填「帳單結帳日」(在此卡片設定)→ 否則以「月」近似`, nodeId: c.id, relatedIds: billing });
+    }
+    const opening = idsInCard((n) => n.type === 'reward' && n.data?.fromOpeningDays);
+    if (!c.data?.opened && opening.length) {
+      issues.push({ id: `noopen-${c.id}`, severity: 'warning', message: `有 ${opening.length} 條「首刷期限(開卡後 N 天)」,但此卡未填「持卡開始日」(在此卡片設定)→ 否則該窗無法生效`, nodeId: c.id, relatedIds: opening });
+    }
+  }
+
+  // Same-named 資格 must agree on their default — they collapse to ONE flag by
+  // name (one ✓/✗ toggle), so conflicting defaults are ambiguous.
+  const byFlag = {};
+  for (const n of nodes) {
+    if (n.type !== 'eligibility') continue;
+    const nm = (n.data?.name || '').trim();
+    if (nm) (byFlag[nm] = byFlag[nm] || []).push(n);
+  }
+  for (const [nm, list] of Object.entries(byFlag)) {
+    if (new Set(list.map((n) => n.data?.default === true)).size > 1) {
+      list.forEach((n) => issues.push({ id: `elig-conflict-${n.id}`, severity: 'warning', message: `資格「${nm}」的預設狀態在多個節點不一致`, nodeId: n.id }));
     }
   }
 
   // Per-node completeness (field-level) as warnings
   for (const n of nodes) {
-    for (const msg of nodeIssues(n, edges)) {
-      issues.push({ id: `node-${n.id}-${msg}`, severity: 'warning', message: `${nodeTitle(n.type)}：${msg}`, nodeId: n.id });
+    for (const it of nodeIssues(n, edges, nodes)) {
+      issues.push({ id: `node-${n.id}-${it.message}`, severity: 'warning', message: `${nodeTitle(n.type)}：${it.message}`, nodeId: n.id });
     }
   }
 
