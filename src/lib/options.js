@@ -47,10 +47,11 @@ export const REWARD_TYPES = [
   { value: 'points', label: '點數' },
 ];
 
+// 疊加層級僅供「顯示/分類」(基本 vs 加碼)—— 引擎不依它改變行為。
+// 真正的「互斥/擇一」請用「擇一」節點(select_group),不要用層級表達。
 export const LAYERS = [
   { value: 'base', label: '基本' },
   { value: 'bonus', label: '加碼' },
-  { value: 'exclusive', label: '排他' },
 ];
 
 export const CYCLES = [
@@ -110,3 +111,15 @@ export const PREDICATE_OP_SYMBOL = {
 
 export const labelOf = (opts, value) =>
   opts.find((o) => o.value === value)?.label ?? value;
+
+// A string option → {value,label}; an object passes through. (Shared by the
+// select / chip field components so the coercion lives in one place.)
+export const normalizeOption = (o) => (typeof o === 'string' ? { value: o, label: o } : o);
+
+// Parse a number <input> value: '' → null; non-finite (中間態如 "1e"、"-") → null.
+// Never lets NaN reach the store (which would corrupt export/lint/simulate).
+export const parseNumInput = (v) => {
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};

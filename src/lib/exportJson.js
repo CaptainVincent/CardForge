@@ -10,7 +10,16 @@
  *    member rule via `limits.pool`.
  */
 
+import { incomingMap, outgoingMap, forwardReachable, ancestorsByType } from './graph.js';
+import { MATCH_LIST_FIELDS } from './matchFields.js';
+
 const slug = (s) => (s || '').toLowerCase().replace(/\s+/g, '-');
+
+// Constraint-family ancestor scans (see exportCard): collect vs pass-through.
+const GATE_COLLECT = new Set(['gate']);
+const GATE_THROUGH = new Set(['condition', 'any']);
+const ELIG_COLLECT = new Set(['eligibility']);
+const ELIG_THROUGH = new Set(['condition', 'any', 'gate']);
 
 // Export ONE card (the cardNode) and its downstream rule subtree.
 export function exportCard(cardNode, nodes, edges) {
@@ -19,19 +28,13 @@ export function exportCard(cardNode, nodes, edges) {
   const cardName = cardNode.data.cardName || 'Unnamed Card';
   const account = cardNode.data.account || '';
   const byId = new Map(nodes.map((n) => [n.id, n]));
-  const incoming = (id) => edges.filter((e) => e.target === id).map((e) => byId.get(e.source)).filter(Boolean);
-  const outgoing = (id) => edges.filter((e) => e.source === id).map((e) => byId.get(e.target)).filter(Boolean);
+  const inMap = incomingMap(edges);
+  const outMap = outgoingMap(edges);
+  const incoming = (id) => (inMap.get(id) || []).map((e) => byId.get(e.source)).filter(Boolean);
+  const outgoing = (id) => (outMap.get(id) || []).map((e) => byId.get(e.target)).filter(Boolean);
 
   // Nodes reachable downstream of this card — its own rule subtree.
-  const scope = (() => {
-    const set = new Set();
-    const stack = [cardId];
-    while (stack.length) {
-      const id = stack.pop();
-      for (const n of outgoing(id)) if (!set.has(n.id)) { set.add(n.id); stack.push(n.id); }
-    }
-    return set;
-  })();
+  const scope = forwardReachable([cardId], edges, outMap);
 
   // All condition-chains gating a node, walking backwards through condition/card
   // predecessors. Only paths reaching THIS card count. Returns AND-groups.
@@ -41,6 +44,7 @@ export function exportCard(cardNode, nodes, edges) {
     const preds = incoming(node.id);
     if (preds.length === 0) return node.type === 'reward' ? [] : [[]];
     const out = [];
+    let constraintToCard = false; // a gate/資格 routes to the card with no conditions of its own
     for (const p of preds) {
       if (p.type === 'card') {
         if (p.id === cardId) out.push([]); // only this card's paths
@@ -48,60 +52,48 @@ export function exportCard(cardNode, nodes, edges) {
         const sub = chainsInto(p, new Set(seen));
         const base = sub.length ? sub : [[]];
         for (const s of base) out.push([...s, p]);
-      } else if (p.type === 'gate') {
-        // gate is transparent for condition-merging — pass its upstream through
+      } else if (p.type === 'gate' || p.type === 'eligibility') {
+        // gate / 資格 are CONSTRAINTS (AND), not alternative paths (OR). Pass
+        // through ONLY the condition chains routed through them in series; a bare
+        // empty pass-through (e.g. a shared 資格 rooted at the card and fanning
+        // out to a reward that already has its own conditions) must NOT add a
+        // spurious unconditional rule. Collect them separately via ancestor*().
         const sub = chainsInto(p, new Set(seen));
-        const base = sub.length ? sub : [[]];
-        for (const s of base) out.push([...s]);
+        for (const s of sub) { if (s.length) out.push([...s]); else constraintToCard = true; }
       } else {
         out.push([]); // reward/limit feeding back in — no condition contribution
       }
     }
+    // Reachable only through a constraint-to-card (no conditions anywhere) → one
+    // unconditional rule; the gate/資格 itself is applied as a constraint.
+    if (out.length === 0 && constraintToCard) out.push([]);
     return out;
   }
 
-  // Gate nodes that gate a reward = its gate ancestors (through condition/gate).
-  function ancestorGates(node, seen = new Set()) {
-    if (seen.has(node.id)) return [];
-    seen.add(node.id);
-    const gates = [];
-    for (const p of incoming(node.id)) {
-      if (p.type === 'gate') { gates.push(p); gates.push(...ancestorGates(p, new Set(seen))); }
-      else if (p.type === 'condition' || p.type === 'any') gates.push(...ancestorGates(p, new Set(seen)));
-    }
-    return gates;
-  }
+  // 約束家族的祖先掃描:gate / 資格 都是「掛在路徑上的約束」,只差收集型別與
+  // 可穿越型別。共用 graph.ancestorsByType,不再各刻一份遞迴。
+  //  - 門檻(gate):收集 gate,穿越 condition/any。
+  //  - 資格(eligibility):收集 eligibility,穿越 condition/any/gate。
+  const ancestorGates = (node) => ancestorsByType(node.id, GATE_COLLECT, GATE_THROUGH, byId, inMap);
+  const ancestorEligibility = (node) => ancestorsByType(node.id, ELIG_COLLECT, ELIG_THROUGH, byId, inMap);
 
   // Rewards reachable downstream of a gate (to detect shared/pooled gates).
-  function downstreamRewards(gate) {
+  const downstreamRewards = (gate) => {
     const found = new Set();
-    const seen = new Set();
-    const stack = [...outgoing(gate.id)];
-    while (stack.length) {
-      const n = stack.pop();
-      if (seen.has(n.id)) continue;
-      seen.add(n.id);
-      if (n.type === 'reward') found.add(n.id);
-      stack.push(...outgoing(n.id));
-    }
+    for (const id of forwardReachable([gate.id], edges, outMap)) if (byId.get(id)?.type === 'reward') found.add(id);
     return found;
-  }
+  };
 
   // Merge condition nodes with AND semantics, splitting positive vs negated
   // (NOT) nodes into include / exclude criteria sets. `any` nodes contribute
   // one cross-field OR group each (a CNF clause: at least one alternative must
   // match). Returns { include, exclude, orGroups }.
   function mergeConditions(conds) {
-    const blank = () => ({
-      isOverseas: null,
-      minAmountTwd: null,
-      currencies: new Set(),
-      channels: new Set(),
-      categories: new Set(),
-      merchants: new Set(),
-      paymentMethods: new Set(),
-      custom: [],
-    });
+    const blank = () => {
+      const o = { isOverseas: null, minAmountTwd: null, custom: [] };
+      for (const f of MATCH_LIST_FIELDS) o[f.node] = new Set();
+      return o;
+    };
     const inc = blank();
     const exc = blank();
     const orGroups = [];
@@ -116,24 +108,15 @@ export function exportCard(cardNode, nodes, edges) {
       const d = c.data || {};
       const t = d.negate ? exc : inc;
       if (d.isOverseas != null) t.isOverseas = d.isOverseas;
-      (d.currencies || []).forEach((x) => t.currencies.add(x));
-      (d.channels || []).forEach((x) => t.channels.add(x));
-      (d.categories || []).forEach((x) => t.categories.add(x));
-      (d.merchants || []).forEach((x) => t.merchants.add(x));
-      (d.paymentMethods || []).forEach((x) => t.paymentMethods.add(x));
+      for (const f of MATCH_LIST_FIELDS) (d[f.node] || []).forEach((x) => t[f.node].add(x));
       (d.custom || []).forEach((p) => t.custom.push(p));
       if (d.minAmountTwd) t.minAmountTwd = Math.max(t.minAmountTwd || 0, d.minAmountTwd);
     }
-    const flat = (s) => ({
-      isOverseas: s.isOverseas,
-      minAmountTwd: s.minAmountTwd,
-      currencies: [...s.currencies],
-      channels: [...s.channels],
-      categories: [...s.categories],
-      merchants: [...s.merchants],
-      paymentMethods: [...s.paymentMethods],
-      custom: s.custom,
-    });
+    const flat = (s) => {
+      const o = { isOverseas: s.isOverseas, minAmountTwd: s.minAmountTwd, custom: s.custom };
+      for (const f of MATCH_LIST_FIELDS) o[f.node] = [...s[f.node]];
+      return o;
+    };
     return { include: flat(inc), exclude: flat(exc), orGroups };
   }
 
@@ -148,11 +131,7 @@ export function exportCard(cardNode, nodes, edges) {
   function buildMatch(m) {
     const o = {};
     if (m.isOverseas != null) o.is_overseas = m.isOverseas;
-    if (m.currencies.length) o.currencies = m.currencies;
-    if (m.channels.length) o.channels = m.channels;
-    if (m.categories.length) o.categories = m.categories;
-    if (m.merchants?.length) o.merchants = m.merchants;
-    if (m.paymentMethods.length) o.payment_methods = m.paymentMethods;
+    for (const f of MATCH_LIST_FIELDS) if (m[f.node]?.length) o[f.json] = m[f.node];
     if (m.minAmountTwd) o.min_amount_twd = m.minAmountTwd;
     const customs = (m.custom || [])
       .filter((p) => p.field && p.value !== '' && p.value != null)
@@ -162,18 +141,9 @@ export function exportCard(cardNode, nodes, edges) {
   }
 
   // Build a match object from raw condition-like node data (an `any` alternative).
-  function buildMatchFromData(d = {}) {
-    return buildMatch({
-      isOverseas: d.isOverseas ?? null,
-      minAmountTwd: d.minAmountTwd ?? null,
-      currencies: d.currencies || [],
-      channels: d.channels || [],
-      categories: d.categories || [],
-      merchants: d.merchants || [],
-      paymentMethods: d.paymentMethods || [],
-      custom: d.custom || [],
-    });
-  }
+  // buildMatch reads node-keyed fields with optional chaining, so raw node data
+  // (currencies/channels/… arrays, isOverseas, minAmountTwd, custom) works直接.
+  const buildMatchFromData = (d = {}) => buildMatch(d);
 
   // Short label for one OR-group alternative (for human-readable rule names).
   function subLabel(sub) {
@@ -212,7 +182,9 @@ export function exportCard(cardNode, nodes, edges) {
   }
   const limitPools = {};
   const eligibilityPools = {};
+  const eligibilityFlags = {}; // flag name → { default } (新戶/登錄…); shared by NAME
   const topGroups = {}; // top node id → { k } (members ranked by 當期消費)
+  const selectGroups = {}; // select node id → { mode } ('best'=取最高 / 'pick'=自選擇一)
 
   const rules = {};
   let ruleIndex = 0;
@@ -223,6 +195,7 @@ export function exportCard(cardNode, nodes, edges) {
 
     const limitNodes = outgoing(reward.id).filter((n) => n.type === 'limit');
     const selectNode = outgoing(reward.id).find((n) => n.type === 'select');
+    if (selectNode && !selectGroups[selectNode.id]) { const md = (selectNode.data || {}).mode; selectGroups[selectNode.id] = md ? { mode: md } : {}; }
     const topNode = outgoing(reward.id).find((n) => n.type === 'top');
     if (topNode && !topGroups[topNode.id]) topGroups[topNode.id] = { k: Math.max(1, Number((topNode.data || {}).k) || 1) };
 
@@ -233,6 +206,15 @@ export function exportCard(cardNode, nodes, edges) {
       if (pool && !limitPools[pool]) limitPools[pool] = { period: { cycle: (ln.data || {}).cycle || 'monthly' }, members: [] };
       return { pool, caps: nodeCaps(ln.data || {}) };
     });
+
+    // Eligibility flags (資格:新戶/登錄…) gating this reward — shared by NAME:
+    // same name = same flag (one ✓/✗ toggle controls every rule that names it).
+    const eligNodes = ancestorEligibility(reward);
+    const flagNames = [...new Set(eligNodes.map((e) => (e.data?.name || '').trim()).filter(Boolean))];
+    for (const e of eligNodes) {
+      const name = (e.data?.name || '').trim();
+      if (name) eligibilityFlags[name] = e.data?.default == null ? {} : { default: e.data.default === true };
+    }
 
     // Unlock gate(s) for this reward; shared gate (→ >1 reward) becomes a pool.
     const gate = ancestorGates(reward)[0];
@@ -330,6 +312,7 @@ export function exportCard(cardNode, nodes, edges) {
           };
         }
       }
+      if (flagNames.length) rule.eligibility.flags = flagNames;
 
       // Free-text caveat (engine-agnostic; 細則/備註 the model can't express precisely)
       if (rd.note?.trim()) rule.note = rd.note.trim();
@@ -337,10 +320,11 @@ export function exportCard(cardNode, nodes, edges) {
       // One-time settlement (首刷禮 / 里程碑)
       if (rd.settlement === 'once') rule.settlement = 'once';
 
-      // Period dates + activation (promo / rotating)
+      // Period dates (promo / rotating). 登錄/註冊活動 is now expressed as a
+      // 資格 flag (eligibility node), not the legacy requires_activation field.
       if (rd.startDate) rule.period.start = rd.startDate;
       if (rd.endDate) rule.period.end = rd.endDate;
-      if (rd.requiresActivation) rule.requires_activation = true;
+      if (rd.fromOpeningDays) rule.period.from_opening_days = rd.fromOpeningDays; // 相對開卡日窗(SUB)
 
       // Human-readable name
       const inc = cd.include;
@@ -367,7 +351,7 @@ export function exportCard(cardNode, nodes, edges) {
         : rd.method === 'per_dollar'
           ? `每${rd.perDollar || '?'}元送${rd.pointsPerUnit ?? 1}`
           : `${rd.rate || 0}%`;
-      const layerPart = rd.layer === 'bonus' ? '+' : rd.layer === 'exclusive' ? '⚡' : '';
+      const layerPart = rd.layer === 'bonus' ? '+' : '';
       rule.name = `${cardName} ${parts.join(' · ')} ${layerPart}${ratePart}`;
 
       rules[id] = rule;
@@ -382,9 +366,13 @@ export function exportCard(cardNode, nodes, edges) {
     card_profile: {},
     generations: [],
   };
+  if (cardNode.data.statementDay) result.statement_day = cardNode.data.statementDay;
+  if (cardNode.data.opened) result.opened = cardNode.data.opened;
   if (Object.keys(limitPools).length) result.limit_pools = limitPools;
   if (Object.keys(eligibilityPools).length) result.eligibility_pools = eligibilityPools;
+  if (Object.keys(eligibilityFlags).length) result.eligibility_flags = eligibilityFlags;
   if (Object.keys(topGroups).length) result.top_groups = topGroups;
+  if (Object.keys(selectGroups).length) result.select_groups = selectGroups;
   return result;
 }
 

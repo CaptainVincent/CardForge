@@ -2,6 +2,8 @@
  * Convert CardForge JSON → React Flow nodes + edges
  */
 
+import { MATCH_LIST_FIELDS } from './matchFields.js';
+
 let _id = 0;
 const nextId = () => `node_${++_id}`;
 
@@ -20,6 +22,29 @@ const importCustom = (list) =>
     value: Array.isArray(p.value) ? p.value.join(',') : (p.value == null ? '' : String(p.value)),
   }));
 
+// JSON match object → canvas node data (shared by condition / exclude / 任一
+// alternative). List fields driven by MATCH_LIST_FIELDS so the three sites can't
+// drift; scalars + custom handled explicitly. `extra` adds e.g. { negate:true }.
+const jsonMatchToNodeData = (m = {}, extra = {}) => {
+  const d = { isOverseas: m.is_overseas ?? null, minAmountTwd: m.min_amount_twd || null, custom: importCustom(m.custom), ...extra };
+  for (const f of MATCH_LIST_FIELDS) d[f.node] = m[f.json] || [];
+  return d;
+};
+
+// Fingerprint grouping rules with identical match → one shared condition node.
+// Same field set as before (min_amount_twd intentionally excluded, preserving
+// prior grouping); only compared within a single import run.
+const matchFingerprint = (m = {}) => {
+  const parts = [];
+  if (m.is_overseas === true) parts.push('overseas');
+  if (m.is_overseas === false) parts.push('domestic');
+  for (const f of MATCH_LIST_FIELDS) if (m[f.json]) parts.push(`${f.json}:${[...m[f.json]].sort().join(',')}`);
+  if (m.custom) parts.push('cu:' + JSON.stringify(m.custom));
+  if (m.exclude) parts.push('ex:' + JSON.stringify(m.exclude));
+  if (m.or_groups) parts.push('or:' + JSON.stringify(m.or_groups));
+  return parts.join('|') || '_general';
+};
+
 // Build ONE card's subtree into the shared nodes/edges arrays, offset by yBase.
 // Returns the bottom Y used so the next card can stack below it.
 function importOneCard(json, nodes, edges, yBase) {
@@ -28,9 +53,8 @@ function importOneCard(json, nodes, edges, yBase) {
   const ruleList = Object.values(rules);
   const limitPools = json.limit_pools || {};
   const eligPools = json.eligibility_pools || {};
-  // Resolve pooled refs back to their values (round-trip preserves data; the
-  // "shared" structure collapses to per-rule nodes, which is acceptable).
-  const resolveLimits = (rule) => (rule.limits?.pool ? limitPools[rule.limits.pool] || {} : rule.limits || {});
+  // Resolve a pooled eligibility (門檻) ref back to its value (round-trip
+  // preserves data; the "shared" structure collapses to per-rule nodes).
   const resolveMinSpending = (rule) => {
     const e = rule.eligibility || {};
     return e.pool ? eligPools[e.pool]?.min_spending || null : e.min_spending || null;
@@ -43,26 +67,15 @@ function importOneCard(json, nodes, edges, yBase) {
     id: cardId,
     type: 'card',
     position: { x: 50, y: yBase + 40 },
-    data: { cardName, account, rounding: json.rounding || 'floor', fxFeeRate: json.fx_fee_rate ?? 1.5 },
+    data: { cardName, account, rounding: json.rounding || 'floor', fxFeeRate: json.fx_fee_rate ?? 1.5, statementDay: json.statement_day ?? null, opened: json.opened ?? null },
   });
   if (ruleList.length === 0) return yBase + 200;
 
-  // Group rules by match_key to create shared condition nodes
+  // Group rules by match fingerprint to create shared condition nodes.
   const byMatch = {};
   for (const rule of ruleList) {
     const m = rule.match || {};
-    const parts = [];
-    if (m.currencies) parts.push('cur:' + m.currencies.sort().join(','));
-    if (m.is_overseas === true) parts.push('overseas');
-    if (m.is_overseas === false) parts.push('domestic');
-    if (m.channels) parts.push('ch:' + m.channels.sort().join(','));
-    if (m.categories) parts.push('cat:' + m.categories.sort().join(','));
-    if (m.merchants) parts.push('mer:' + [...m.merchants].sort().join(','));
-    if (m.payment_methods) parts.push('pm:' + m.payment_methods.sort().join(','));
-    if (m.custom) parts.push('cu:' + JSON.stringify(m.custom));
-    if (m.exclude) parts.push('ex:' + JSON.stringify(m.exclude));
-    if (m.or_groups) parts.push('or:' + JSON.stringify(m.or_groups));
-    const key = parts.join('|') || '_general';
+    const key = matchFingerprint(m);
     if (!byMatch[key]) byMatch[key] = { match: m, rules: [] };
     byMatch[key].rules.push(rule);
   }
@@ -72,6 +85,8 @@ function importOneCard(json, nodes, edges, yBase) {
   const topGroups = {}; // top_group id → [rewardId, ...]
   const topGroupConf = json.top_groups || {}; // top_group id → { k }
   const poolLimitNodes = {}; // limit pool id → shared limit node id
+  const flagRegistry = json.eligibility_flags || {}; // flag name → { default }
+  const flagNodes = {}; // flag name → shared 資格 node id (one node controls many rewards)
 
   for (const group of Object.values(byMatch)) {
     const m = group.match;
@@ -82,16 +97,7 @@ function importOneCard(json, nodes, edges, yBase) {
       id: condId,
       type: 'condition',
       position: { x: 350, y: groupY },
-      data: {
-        isOverseas: m.is_overseas ?? null,
-        currencies: m.currencies || [],
-        channels: m.channels || [],
-        categories: m.categories || [],
-        merchants: m.merchants || [],
-        paymentMethods: m.payment_methods || [],
-        minAmountTwd: m.min_amount_twd || null,
-        custom: importCustom(m.custom),
-      },
+      data: jsonMatchToNodeData(m),
     });
     edges.push(edge(cardId, condId));
 
@@ -104,17 +110,7 @@ function importOneCard(json, nodes, edges, yBase) {
         id: exId,
         type: 'condition',
         position: { x: 545, y: groupY },
-        data: {
-          negate: true,
-          isOverseas: ex.is_overseas ?? null,
-          currencies: ex.currencies || [],
-          channels: ex.channels || [],
-          categories: ex.categories || [],
-          merchants: ex.merchants || [],
-          paymentMethods: ex.payment_methods || [],
-          minAmountTwd: ex.min_amount_twd || null,
-          custom: importCustom(ex.custom),
-        },
+        data: jsonMatchToNodeData(ex, { negate: true }),
       });
       edges.push(edge(condId, exId));
       condSource = exId;
@@ -128,16 +124,7 @@ function importOneCard(json, nodes, edges, yBase) {
         type: 'any',
         position: { x: 545 + (gi + 1) * 170, y: groupY },
         data: {
-          alternatives: (groupAlts || []).map((sub) => ({
-            isOverseas: sub.is_overseas ?? null,
-            currencies: sub.currencies || [],
-            channels: sub.channels || [],
-            categories: sub.categories || [],
-            merchants: sub.merchants || [],
-            paymentMethods: sub.payment_methods || [],
-            minAmountTwd: sub.min_amount_twd || null,
-            custom: importCustom(sub.custom),
-          })),
+          alternatives: (groupAlts || []).map((sub) => jsonMatchToNodeData(sub)),
         },
       });
       edges.push(edge(condSource, anyId));
@@ -150,7 +137,6 @@ function importOneCard(json, nodes, edges, yBase) {
     let ruleY = groupY;
     for (const rule of group.rules) {
       const r = rule.reward || {};
-      const lim = resolveLimits(rule);
       const ms = resolveMinSpending(rule);
 
       // Reward node
@@ -180,7 +166,7 @@ function importOneCard(json, nodes, edges, yBase) {
           settlement: rule.settlement === 'once' ? 'once' : 'recurring',
           startDate: rule.period?.start || null,
           endDate: rule.period?.end || null,
-          requiresActivation: !!rule.requires_activation,
+          fromOpeningDays: rule.period?.from_opening_days ?? null,
           isActive: rule.is_active !== false,
           note: rule.note || '',
         },
@@ -205,15 +191,33 @@ function importOneCard(json, nodes, edges, yBase) {
         edges.push(edge(condSource, rewardId));
       }
 
-      // Limit nodes — from new caps[] or legacy reward-only scalar keys. Group
-      // by pool|metric → one limit node each (pooled nodes shared across rules).
-      const ruleCaps = Array.isArray(rule.limits?.caps)
-        ? rule.limits.caps
-        : [
-            ...(lim.max_reward_per_txn ? [{ metric: 'reward', window: 'txn', max: lim.max_reward_per_txn }] : []),
-            ...(lim.max_reward_per_period ? [{ metric: 'reward', window: 'period', max: lim.max_reward_per_period }] : []),
-            ...(lim.max_reward_total ? [{ metric: 'reward', window: 'total', max: lim.max_reward_total }] : []),
-          ];
+      // Eligibility flags (資格:新戶/登錄…) — one shared node per flag NAME,
+      // rooted at the card, fanning out to every reward that requires it.
+      // Legacy requires_activation migrates to a 已登錄 flag. `default` is
+      // tri-state: true / false explicitly written, or undefined when the card
+      // leaves it for the user to pick (節點顯示未選 + 黃點).
+      const flagList = [...(rule.eligibility?.flags || [])];
+      if (rule.requires_activation && !flagList.includes('已登錄')) flagList.push('已登錄');
+      for (const name of flagList) {
+        let fid = flagNodes[name];
+        if (!fid) {
+          fid = nextId();
+          const dflt = flagRegistry[name]?.default;
+          nodes.push({
+            id: fid,
+            type: 'eligibility',
+            position: { x: 360 + dx, y: yBase + 40 - 110 - Object.keys(flagNodes).length * 80 },
+            data: { name, default: dflt === true ? true : dflt === false ? false : undefined },
+          });
+          flagNodes[name] = fid;
+          edges.push(edge(cardId, fid));
+        }
+        edges.push(edge(fid, rewardId));
+      }
+
+      // Limit nodes — from caps[]. Group by pool|metric → one limit node each
+      // (pooled nodes shared across rules).
+      const ruleCaps = Array.isArray(rule.limits?.caps) ? rule.limits.caps : [];
       const capGroups = {};
       for (const c of ruleCaps) {
         const metric = c.metric || 'reward';
@@ -259,10 +263,12 @@ function importOneCard(json, nodes, edges, yBase) {
   }
 
   // Rebuild one 擇優 (select) node per group; member rewards connect into it.
+  // mode: 'best'(取最高,預設) or 'pick'(自選擇一) carried from select_groups.
+  const selectGroupConf = json.select_groups || {};
   let selY = yBase + 40;
-  for (const rewardIds of Object.values(selectGroups)) {
+  for (const [gid, rewardIds] of Object.entries(selectGroups)) {
     const selId = nextId();
-    nodes.push({ id: selId, type: 'select', position: { x: 1320, y: selY }, data: {} });
+    nodes.push({ id: selId, type: 'select', position: { x: 1320, y: selY }, data: { mode: selectGroupConf[gid]?.mode } }); // mode: 'best'/'pick'/undefined(未選)
     for (const rid of rewardIds) edges.push(edge(rid, selId));
     selY += 160;
   }
