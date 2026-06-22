@@ -63,6 +63,10 @@ export function rewardSummary(d = {}) {
     value = `${d.rewardCurrency || 'TWD'} ${d.fixedAmount != null ? num(d.fixedAmount) : '?'}`;
   } else if (method === 'per_dollar') {
     value = d.perDollar ? `每 $${num(d.perDollar)} 送 ${d.pointsPerUnit ?? 1}` : '每 N 元送點';
+  } else if (d.tierMode === 'distinct_count' && d.tiers?.length) {
+    const counts = d.tiers.map((t) => t.minSpend).filter((v) => v != null);
+    const rates = d.tiers.map((t) => t.rate).filter((r) => r != null);
+    value = `品牌數${counts.length ? ` ${Math.min(...counts)}–${Math.max(...counts)}家` : ''} +${rates.length ? `${Math.min(...rates)}~${Math.max(...rates)}` : '?'}%`;
   } else if ((d.tierMode === 'spend' || d.tierMode === 'marginal') && d.tiers?.length) {
     const rates = d.tiers.map((t) => t.rate).filter((r) => r != null);
     const word = d.tierMode === 'marginal' ? '累進' : '級距';

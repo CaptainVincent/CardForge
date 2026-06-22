@@ -253,12 +253,15 @@ export function exportCard(cardNode, nodes, edges) {
           rate: (rd.method || 'percentage') === 'percentage' ? (rd.rate || 0) / 100 : 0,
         },
         tiers:
-          rd.method === 'percentage' && (rd.tierMode === 'spend' || rd.tierMode === 'marginal') && rd.tiers?.length
+          rd.method === 'percentage' && (rd.tierMode === 'spend' || rd.tierMode === 'marginal' || rd.tierMode === 'distinct_count') && rd.tiers?.length
             ? {
                 mode: rd.tierMode,
+                // distinct_count 的門檻是「家數」→ min_count;金額級距 → min_amount。
                 bands: rd.tiers
                   .filter((t) => t.minSpend != null || t.rate != null)
-                  .map((t) => ({ min_amount: t.minSpend || 0, rate: (t.rate || 0) / 100 })),
+                  .map((t) => (rd.tierMode === 'distinct_count'
+                    ? { min_count: t.minSpend || 0, rate: (t.rate || 0) / 100 }
+                    : { min_amount: t.minSpend || 0, rate: (t.rate || 0) / 100 })),
               }
             : { mode: 'flat' },
         limits: {},

@@ -554,6 +554,19 @@ describe('lint (impossible match → relatedIds on conflicting conditions)', () 
   });
 });
 
+describe('品牌數級距(踩點 distinct_count;情境給家數,取最高符合檔)', () => {
+  const j = db({ r: rule({ reward: cash(0), tiers: { mode: 'distinct_count', bands: [
+    { min_count: 2, rate: 0.01 }, { min_count: 3, rate: 0.02 }, { min_count: 5, rate: 0.04 },
+  ] } }) });
+  it('依 tx.distinctCount 取對應檔位費率', () => {
+    expect(simulate(j, { amount: 1000, distinctCount: 1 }).cashback).toBe(0);  // 不足 2 家 → 無加碼
+    expect(simulate(j, { amount: 1000, distinctCount: 2 }).cashback).toBe(10); // +1%
+    expect(simulate(j, { amount: 1000, distinctCount: 4 }).cashback).toBe(20); // 取 3 家檔 +2%
+    expect(simulate(j, { amount: 1000, distinctCount: 6 }).cashback).toBe(40); // 取 5 家檔 +4%
+    expect(simulate(j, { amount: 1000 }).cashback).toBe(0);                     // 未給家數 → 無加碼
+  });
+});
+
 describe('擇一·自選 over 一次性首刷禮(互斥身分:新戶/既有戶)', () => {
   const sub = (id, amt, active) => rule({
     reward: { type: 'cashback', method: 'fixed', fixed_amount: amt },

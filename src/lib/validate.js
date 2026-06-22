@@ -52,7 +52,7 @@ export function nodeIssues(node, edges, nodes = []) {
   if (node.type === 'reward') {
     const m = d.method || 'percentage';
     if (m === 'percentage') {
-      if (d.tierMode === 'spend' || d.tierMode === 'marginal') {
+      if (d.tierMode === 'spend' || d.tierMode === 'marginal' || d.tierMode === 'distinct_count') {
         if (!d.tiers?.some((t) => t.rate != null)) E('未設定任何級距比率');
       } else if (!d.rate) {
         E('未設定回饋率');
@@ -65,7 +65,7 @@ export function nodeIssues(node, edges, nodes = []) {
     if (d.startDate && d.endDate && d.startDate > d.endDate) E('活動起始日晚於截止日');
     if (d.fromOpeningDays != null && d.fromOpeningDays <= 0) E('首刷期限天數需大於 0');
     // 級距門檻需由小到大遞增(否則引擎取級距會錯亂)
-    if ((d.tierMode === 'spend' || d.tierMode === 'marginal') && d.tiers?.length) {
+    if ((d.tierMode === 'spend' || d.tierMode === 'marginal' || d.tierMode === 'distinct_count') && d.tiers?.length) {
       const mins = d.tiers.map((t) => t.minSpend).filter((v) => v != null);
       if (mins.some((v, i) => i > 0 && v <= mins[i - 1])) E('級距門檻未由小到大遞增');
     }

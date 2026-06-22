@@ -1,30 +1,38 @@
 import { parseNumInput } from '../../lib/options';
 
-// Repeatable tier rows shared by two modes:
-//  spend    — cumulative spend ≥ N → single rate (取最高符合;永豐式 滿1萬→10%)
-//  marginal — 超過 N 的金額才套該段費率 (超額累進;各段分別計)
+// Repeatable tier rows shared by three modes (threshold lives in `minSpend`
+// generically — 金額 for spend/marginal, 家數 for distinct_count):
+//  spend          — cumulative spend ≥ N → single rate (取最高符合;滿1萬→10%)
+//  marginal       — 超過 N 的金額才套該段費率 (超額累進;各段分別計)
+//  distinct_count — 當期不同品牌數 ≥ N → 加碼費率 (踩點;分析給家數、取最高符合)
+const LABELS = {
+  spend: '消費級距（累計達標套用，取最高符合）',
+  marginal: '超額累進（每段金額各套自己的費率）',
+  distinct_count: '品牌數級距（當期不同品牌達 N 家 → 加碼）',
+};
 export default function TierEditor({ tiers = [], onChange, mode = 'spend' }) {
   const update = (i, patch) => onChange(tiers.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
   const add = () => onChange([...tiers, { minSpend: null, rate: null }]);
   const remove = (i) => onChange(tiers.filter((_, idx) => idx !== i));
-  const marginal = mode === 'marginal';
+  const count = mode === 'distinct_count';
+  const prefix = mode === 'marginal' ? '超過' : count ? '達' : '累計≥';
 
   return (
     <div>
-      <span className="cf-field-label">
-        {marginal ? '超額累進（每段金額各套自己的費率）' : '消費級距（累計達標套用，取最高符合）'}
-      </span>
+      <span className="cf-field-label">{LABELS[mode] || LABELS.spend}</span>
       <div className="mt-1.5 space-y-2">
         {tiers.map((t, i) => (
           <div key={i} className="flex items-center gap-1.5">
-            <span className="text-[11px] text-[var(--cf-text-faint)]">{marginal ? '超過' : '累計≥'}</span>
+            <span className="text-[11px] text-[var(--cf-text-faint)]">{prefix}</span>
             <input
               type="number"
+              step={count ? '1' : undefined}
               className="cf-input !mt-0"
-              placeholder="金額"
+              placeholder={count ? '家數' : '金額'}
               value={t.minSpend ?? ''}
               onChange={(e) => update(i, { minSpend: parseNumInput(e.target.value) })}
             />
+            {count && <span className="text-[11px] text-[var(--cf-text-faint)]">家</span>}
             <span className="text-[11px] text-[var(--cf-text-faint)]">→</span>
             <input
               type="number"

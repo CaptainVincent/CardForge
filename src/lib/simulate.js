@@ -166,6 +166,12 @@ function rewardFor(rule, tx, json) {
       const spend = Number(tx.periodSpend) || amount;
       const band = bands.filter((b) => spend >= (b.min_amount || 0)).sort((a, b) => (b.min_amount || 0) - (a.min_amount || 0))[0];
       if (band) rate = band.rate;
+    } else if (rule.tiers?.mode === 'distinct_count' && bands?.length) {
+      // Rate by 當期不同品牌數 — the count is a SCENARIO input (tx.distinctCount,
+      // set in 分析 sandbox), not auto-derived; below the lowest tier → no bonus.
+      const count = Number(tx.distinctCount) || 0;
+      const band = bands.filter((b) => count >= (b.min_count || 0)).sort((a, b) => (b.min_count || 0) - (a.min_count || 0))[0];
+      rate = band ? band.rate : 0;
     }
     value = amount * rate;
   }
@@ -474,6 +480,9 @@ export function deriveTxFieldsFromJson(json) {
     hasMcc: ms.some((m) => m.mcc?.length),
     customFields: uniq(ms.flatMap((m) => (m.custom || []).map((p) => p.field)).filter(Boolean)),
     hasGateOrTiers: rules.some((r) => r.tiers?.mode === 'spend' || r.eligibility?.min_spending || r.eligibility?.pool),
+    // 踩點(品牌數級距):分析需提供「當期不同品牌數」情境;maxBrandCount = 最高檔門檻。
+    hasDistinctCount: rules.some((r) => r.tiers?.mode === 'distinct_count'),
+    maxBrandCount: Math.max(0, ...rules.flatMap((r) => (r.tiers?.mode === 'distinct_count' ? (r.tiers.bands || []).map((b) => b.min_count || 0) : [0]))),
     // Named eligibility flags (新戶/登錄…), with each flag's declared state kept
     // as the tri-state it was authored in (true 符合 / false 未符合 / undefined
     // 未選). Analysis shows this READ-ONLY — the resolved value (未選→未符合) is
@@ -498,6 +507,8 @@ export function mergeFields(list) {
     hasMcc: list.some((f) => f.hasMcc),
     customFields: uniq(list.flatMap((f) => f.customFields)),
     hasGateOrTiers: list.some((f) => f.hasGateOrTiers),
+    hasDistinctCount: list.some((f) => f.hasDistinctCount),
+    maxBrandCount: Math.max(0, ...list.map((f) => f.maxBrandCount || 0)),
     eligibilityFlags: Object.values(
       Object.fromEntries(list.flatMap((f) => f.eligibilityFlags || []).map((e) => [e.name, e]))
     ),

@@ -153,10 +153,11 @@ function importOneCard(json, nodes, edges, yBase) {
           rewardCurrency: r.reward_currency || 'TWD',
           perDollar: r.per_dollar || null,
           pointsPerUnit: r.points_per_unit ?? null,
-          tierMode: rule.tiers?.mode === 'spend' || rule.tiers?.mode === 'marginal' ? rule.tiers.mode : 'flat',
-          tiers: rule.tiers?.mode === 'spend' || rule.tiers?.mode === 'marginal'
+          tierMode: ['spend', 'marginal', 'distinct_count'].includes(rule.tiers?.mode) ? rule.tiers.mode : 'flat',
+          tiers: ['spend', 'marginal', 'distinct_count'].includes(rule.tiers?.mode)
             ? (rule.tiers.bands || []).map((b) => ({
-                minSpend: b.min_amount || 0,
+                // minSpend holds the tier threshold (家數 for distinct_count, else 金額).
+                minSpend: (rule.tiers.mode === 'distinct_count' ? b.min_count : b.min_amount) || 0,
                 rate: parseFloat(((b.rate || 0) * 100).toFixed(6)),
               }))
             : [],

@@ -65,7 +65,7 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
   const sel = Math.min(idx, Math.max(cards.length - 1, 0));
   const fields = tab === 'compare' ? mergeFields(cardFields.length ? cardFields : [{}]) : (cardFields[sel] || {});
 
-  const [f, setF] = useState({ amount: 1000, date: '', region: null, currency: null, channels: [], categories: [], mcc: '', merchant: null, paymentMethod: null, periodSpend: '', custom: {}, hasFee: true });
+  const [f, setF] = useState({ amount: 1000, date: '', region: null, currency: null, channels: [], categories: [], mcc: '', merchant: null, paymentMethod: null, periodSpend: '', custom: {}, flags: {}, distinctCount: '', hasFee: true });
   const set = (patch) => setF((s) => ({ ...s, ...patch }));
   const toggle = (key, v) => setF((s) => ({ ...s, [key]: s[key].includes(v) ? s[key].filter((x) => x !== v) : [...s[key], v] }));
 
@@ -78,8 +78,10 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
     if (f.mcc) t.mcc = f.mcc;
     if (f.merchant) t.merchant = f.merchant;
     if (f.paymentMethod) t.paymentMethod = f.paymentMethod;
-    // 資格情境(新戶/登錄…)不在此覆寫:單一真實來源是資格節點,引擎依各旗標
-    // 的宣告預設判定(未選→視為未符合)。分析只唯讀顯示,見下方「資格情境」。
+    // 情境假設(僅供比較,不寫回規則):資格符合與否、踩點當期不同品牌數。
+    // 動態真實值(這月任務做了沒、實際家數)未來由記帳判定;這裡只是 what-if 旋鈕。
+    t.flags = f.flags;
+    if (f.distinctCount !== '' && f.distinctCount != null) t.distinctCount = Number(f.distinctCount);
     if (f.date) t.date = f.date; // 帶日期 → 多期:依日期生效 + 各週期上限/門檻分別重置
     t.hasFee = f.hasFee;
     return t;
@@ -216,20 +218,35 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                 </label>
               )}
 
-              {fields.eligibilityFlags?.length > 0 && (
+              {(fields.eligibilityFlags?.length > 0 || fields.hasDistinctCount) && (
                 <div>
-                  <span className="cf-field-label">資格情境<span className="text-[var(--cf-text-faint)]">（依規則設定,於資格節點調整）</span></span>
+                  <span className="cf-field-label">情境假設<span className="text-[var(--cf-text-faint)]">（僅供比較,不影響規則;真實值由記帳判定）</span></span>
                   <div className="mt-1.5 space-y-1.5">
                     {fields.eligibilityFlags.map((fl) => {
-                      const state = fl.default === true ? '符合' : fl.default === false ? '未符合' : '未選 → 視為未符合';
-                      const dim = fl.default !== true;
+                      const on = f.flags[fl.name] ?? fl.default ?? false;
                       return (
                         <div key={fl.name} className="flex items-center justify-between gap-2">
                           <span className="min-w-0 flex-1 truncate text-xs text-[var(--cf-text-dim)]">{fl.name}</span>
-                          <span className="flex-none whitespace-nowrap text-[11px]" style={{ color: dim ? 'var(--cf-text-faint)' : 'var(--cf-text-dim)' }}>{state}</span>
+                          <div className="cf-seg !mt-0 !w-auto flex-none">
+                            {[['符合', true], ['未符合', false]].map(([l, v]) => (
+                              <button key={l} type="button" className={`!px-2 !text-[11px] ${on === v ? 'is-active' : ''}`} onClick={() => set({ flags: { ...f.flags, [fl.name]: v } })}>{l}</button>
+                            ))}
+                          </div>
                         </div>
                       );
                     })}
+                    {fields.hasDistinctCount && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="min-w-0 flex-1 truncate text-xs text-[var(--cf-text-dim)]">當期不同品牌數（踩點）</span>
+                        <input
+                          type="number" min="0" step="1"
+                          className="cf-input !mt-0 !w-20 flex-none"
+                          placeholder="家數"
+                          value={f.distinctCount}
+                          onChange={(e) => set({ distinctCount: e.target.value })}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
