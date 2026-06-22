@@ -224,7 +224,7 @@ export function exportCard(cardNode, nodes, edges) {
       if (!eligibilityPools[eligPoolId]) {
         const gd = gate.data || {};
         eligibilityPools[eligPoolId] = {
-          min_spending: { amount: gd.threshold || 0, currency: gd.currency || 'TWD', period: gd.cycle || 'monthly' },
+          min_spending: { amount: gd.threshold || 0, ...(gd.metric === 'count' ? { metric: 'count' } : { currency: gd.currency || 'TWD' }), period: gd.cycle || 'monthly' },
           members: [],
         };
       }
@@ -312,7 +312,7 @@ export function exportCard(cardNode, nodes, edges) {
           const gd = gate.data || {};
           rule.eligibility.min_spending = {
             amount: gd.threshold || 0,
-            currency: gd.currency || 'TWD',
+            ...(gd.metric === 'count' ? { metric: 'count' } : { currency: gd.currency || 'TWD' }),
             period: gd.cycle || 'monthly',
           };
         }

@@ -258,8 +258,12 @@
 
 ```json
 "eligibility": { "min_spending": { "amount": 30000, "currency": "TWD", "period": "monthly" } }
+// 筆數門檻(當期滿 N 筆才享):metric:"count",amount = 筆數(無 currency)
+"eligibility": { "min_spending": { "amount": 3, "metric": "count", "period": "monthly" } }
 ```
 
+- `min_spending.metric`:`"spend"`(預設,amount=**金額**)或 `"count"`(amount=**筆數**,當期累積
+  達 N 筆才解鎖)。筆數門檻各週期重置;單筆試算以 `periodCount` 情境(預設 1)代入。
 - 多條規則共用同一道門檻 → 用 pool:規則寫 `"eligibility": { "pool": "<poolId>" }`,卡片層
   `eligibility_pools` 註冊 `min_spending` 與 members。
 - 門檻 = **下限/解鎖**,上限 = **上限/截斷**,兩者是鏡像、各自獨立,不要混用。

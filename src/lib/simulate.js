@@ -222,6 +222,11 @@ function eligibility(rule, tx, json) {
   if (flag) return { ok: false, flag };
   const ms = resolveMinSpending(rule, json);
   if (!ms?.amount) return { ok: true };
+  if (ms.metric === 'count') {
+    // 筆數門檻(當期滿 N 筆):單筆試算以 periodCount 情境(預設 1)代入。
+    const cnt = Number(tx.periodCount) || 1;
+    return { ok: cnt >= ms.amount, need: ms.amount, metric: 'count' };
+  }
   const spend = Number(tx.periodSpend) || Number(tx.amount) || 0;
   return { ok: spend >= ms.amount, need: ms.amount };
 }
@@ -320,6 +325,7 @@ export function simulateMonth(json, txns = [], rates = {}) {
   const stmtDay = json?.statement_day; // statement-close day for billing_cycle buckets
   const opened = json?.opened;         // card open date — resolves relative SUB windows
   const spendInCycle = {}; // `${cycle}:${instance}` → cumulative spend in that cycle instance
+  const countInCycle = {}; // `${cycle}:${instance}` → cumulative txn COUNT (筆數門檻)
   const windowSpend = {};  // ruleId → in-window cumulative (for dated total-gates: SUB)
   const capUsed = {};       // bucket(@instance) → accumulated reward counted against the cap
   const capMeta = {};       // bucket(@instance) → { name, max, hit, firstHitTxn, lost }
@@ -337,7 +343,7 @@ export function simulateMonth(json, txns = [], rates = {}) {
   ordered.forEach((tx, ti) => {
     const amount = Number(tx.amount) || 0;
     // Accrue this txn into every cycle granularity's current instance.
-    for (const cy of STD_CYCLES) { const k = spendKey(tx.date, cy, stmtDay); spendInCycle[k] = (spendInCycle[k] || 0) + amount; }
+    for (const cy of STD_CYCLES) { const k = spendKey(tx.date, cy, stmtDay); spendInCycle[k] = (spendInCycle[k] || 0) + amount; countInCycle[k] = (countInCycle[k] || 0) + 1; }
     const fired = [];
     const skipped = [];
 
@@ -357,17 +363,24 @@ export function simulateMonth(json, txns = [], rates = {}) {
 
       const ms = resolveMinSpending(rule, json);
       if (ms?.amount) {
-        // A dated rule with a `total` threshold = cumulative WITHIN its window
-        // (SUB: spend $X within N days of opening). Otherwise per-cycle cumulative.
-        const dated = !!(rule.period && (rule.period.start || rule.period.end || rule.period.from_opening_days != null));
-        let gateSpend;
-        if (ms.period === 'total' && dated) {
-          windowSpend[rule.id] = (windowSpend[rule.id] || 0) + amount;
-          gateSpend = windowSpend[rule.id];
+        let gateVal, reason;
+        if (ms.metric === 'count') {
+          // 筆數門檻:當期累積『筆數』達標(各週期重置)。
+          gateVal = countInCycle[spendKey(tx.date, ms.period || 'monthly', stmtDay)] ?? 1;
+          reason = `未達當期筆數門檻 ${ms.amount} 筆`;
         } else {
-          gateSpend = spendInCycle[spendKey(tx.date, ms.period || 'monthly', stmtDay)] ?? amount;
+          // A dated rule with a `total` threshold = cumulative WITHIN its window
+          // (SUB: spend $X within N days of opening). Otherwise per-cycle cumulative.
+          const dated = !!(rule.period && (rule.period.start || rule.period.end || rule.period.from_opening_days != null));
+          if (ms.period === 'total' && dated) {
+            windowSpend[rule.id] = (windowSpend[rule.id] || 0) + amount;
+            gateVal = windowSpend[rule.id];
+          } else {
+            gateVal = spendInCycle[spendKey(tx.date, ms.period || 'monthly', stmtDay)] ?? amount;
+          }
+          reason = `未達當期門檻 $${ms.amount.toLocaleString()}`;
         }
-        if (gateSpend < ms.amount) { skipped.push({ id: rule.id, name: rule.name, reason: `未達當期門檻 $${ms.amount.toLocaleString()}` }); continue; }
+        if (gateVal < ms.amount) { skipped.push({ id: rule.id, name: rule.name, reason }); continue; }
         if (gateUnlock[rule.id] == null) gateUnlock[rule.id] = ti;
       }
 

@@ -110,7 +110,9 @@ export function limitSummary(d = {}) {
 
 export function gateSummary(d = {}) {
   if (!d.threshold) return '尚未設定門檻';
-  return `${labelOf(CYCLES, d.cycle || 'monthly')}滿 ${d.currency || 'TWD'} ${num(d.threshold)}`;
+  const cyc = labelOf(CYCLES, d.cycle || 'monthly');
+  if (d.metric === 'count') return `${cyc}滿 ${num(d.threshold)} 筆`;
+  return `${cyc}滿 ${d.currency || 'TWD'} ${num(d.threshold)}`;
 }
 
 export function eligibilitySummary(d = {}) {

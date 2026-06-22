@@ -182,6 +182,7 @@ function importOneCard(json, nodes, edges, yBase) {
           type: 'gate',
           position: { x: 600 + dx, y: ruleY },
           data: {
+            metric: ms.metric === 'count' ? 'count' : 'spend',
             threshold: ms.amount || null,
             currency: ms.currency || 'TWD',
             cycle: ms.period && ms.period !== 'promotion' ? ms.period : 'monthly',

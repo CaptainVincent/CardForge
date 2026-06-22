@@ -554,6 +554,18 @@ describe('lint (impossible match → relatedIds on conflicting conditions)', () 
   });
 });
 
+describe('筆數門檻(當期滿 N 筆才解鎖;min_spending.metric:count)', () => {
+  const j = db({ r: rule({ reward: cash(0.1), eligibility: { min_spending: { amount: 3, metric: 'count', period: 'monthly' } } }) });
+  it('週期累積:第 3 筆(含)起才給回饋', () => {
+    const r = simulateMonth(j, [{ amount: 1000 }, { amount: 1000 }, { amount: 1000 }, { amount: 1000 }]);
+    expect(r.perTxn.map((t) => t.cashback)).toEqual([0, 0, 100, 100]);
+  });
+  it('單筆試算以 periodCount 情境代入(預設 1 筆)', () => {
+    expect(simulate(j, { amount: 1000 }).cashback).toBe(0);                   // 1 筆 < 3
+    expect(simulate(j, { amount: 1000, periodCount: 3 }).cashback).toBe(100); // 情境滿 3 筆
+  });
+});
+
 describe('時段條件(卡友日:星期/每月某號,由交易日期推算)', () => {
   it('週五規則只在週五命中(tx.date 推算星期;或顯式 dayOfWeek)', () => {
     const fri = db({ r: rule({ match: { day_of_week: ['fri'] }, reward: cash(0.05) }) });
