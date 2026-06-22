@@ -1,7 +1,14 @@
 // One-line summaries for nodes. Shared by the canvas cards and Inspector header.
 // Title / accent now come from the node registry (single source of truth).
 
-import { CHANNEL_OPTIONS, CATEGORY_OPTIONS, PM_OPTIONS, CYCLES, LAYERS, PREDICATE_OP_SYMBOL, labelOf } from './options';
+import { CHANNEL_OPTIONS, CATEGORY_OPTIONS, PM_OPTIONS, CYCLES, LAYERS, WEEKDAY_OPTIONS, PREDICATE_OP_SYMBOL, labelOf } from './options';
+
+const dayParts = (d) => {
+  const p = [];
+  if (d.dayOfWeek?.length) p.push(d.dayOfWeek.map((w) => labelOf(WEEKDAY_OPTIONS, w)).join('/'));
+  if (d.dayOfMonth?.length) p.push(`每月${d.dayOfMonth.join('/')}號`);
+  return p;
+};
 
 export { nodeTitle, nodeAccent } from '../nodes/registry';
 
@@ -24,6 +31,7 @@ export function conditionSummary(d = {}) {
   if (d.categories?.length) parts.push(d.categories.map((c) => labelOf(CATEGORY_OPTIONS, c)).join('/'));
   if (d.merchants?.length) parts.push(`特店 ${listLabel(d.merchants)}`);
   if (d.paymentMethods?.length) parts.push(d.paymentMethods.map((p) => labelOf(PM_OPTIONS, p)).join('/'));
+  parts.push(...dayParts(d));
   if (d.minAmountTwd) parts.push(`≥$${num(d.minAmountTwd)}`);
   for (const c of d.custom || []) {
     if (c.field && c.value !== '' && c.value != null) {
@@ -43,6 +51,7 @@ const altLabel = (a = {}) => {
   if (a.categories?.length) p.push(a.categories.map((c) => labelOf(CATEGORY_OPTIONS, c)).join('/'));
   if (a.merchants?.length) p.push(`特店 ${listLabel(a.merchants)}`);
   if (a.paymentMethods?.length) p.push(a.paymentMethods.map((m) => labelOf(PM_OPTIONS, m)).join('/'));
+  p.push(...dayParts(a));
   if (a.minAmountTwd) p.push(`≥$${num(a.minAmountTwd)}`);
   for (const c of a.custom || []) {
     if (c.field && c.value !== '' && c.value != null) p.push(`${c.field}${PREDICATE_OP_SYMBOL[c.op] || '='}${c.value}`);

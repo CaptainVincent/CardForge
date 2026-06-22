@@ -134,13 +134,20 @@
   "merchants": ["7-11", "全家", "星巴克"],
   "payment_methods": ["apple_pay", "google_pay", "line_pay", "jkopay", "pxpay"],
   "min_amount_twd": 1000,
-  "custom": [ { "field": "day_of_week", "op": "in", "value": ["sat", "sun"] } ],
+  "day_of_week": ["fri", "sat", "sun"],
+  "day_of_month": [1, 20],
+  "custom": [ { "field": "channel_brand", "op": "is", "value": "foodpanda" } ],
   "exclude": { "categories": ["gas"] },
   "or_groups": [ [ { "categories": ["dining"] }, { "channels": ["online"] } ] ]
 }
 ```
 
 **可用列舉(優先使用;沒有對應的才用 `custom`):**
+- `day_of_week`(**卡友日/週幾限定**):`["mon"|"tue"|"wed"|"thu"|"fri"|"sat"|"sun"]`,任一命中即算。
+- `day_of_month`(**每月某號**):`[1..31]`(數字),任一命中即算。
+  兩者皆為**交易日期屬性**——引擎由交易 `date` 自動推算星期/日(單筆試算可顯式給 `dayOfWeek`/
+  `dayOfMonth` 情境)。卡友日「週五夢時代+8%」「每月1號家樂福」等,用這兩個欄位、做成一條 match
+  帶日期條件的**靜態規則**(不是動態情境)。贈品/折價/買一送一非%回饋 → 記 note。
 - `channels`:`online`(網購)、`mobile_pay`(行動支付)、`contactless`(感應)、`overseas`(海外)。
 - `categories`:`dining`(餐飲)、`supermarket`(超市)、`convenience`(超商)、`gas`(加油)、
   `travel`(旅遊)、`streaming`(影音)、`department`(百貨)、`drugstore`(藥妝)。

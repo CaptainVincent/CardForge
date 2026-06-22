@@ -87,6 +87,17 @@ export const LIMIT_METRICS = [
   { value: 'count', label: '筆數' },
 ];
 
+// 星期(卡友日/週幾限定);value 與引擎 weekday 推算一致(date → 週幾)。
+export const WEEKDAY_OPTIONS = [
+  { value: 'mon', label: '週一' },
+  { value: 'tue', label: '週二' },
+  { value: 'wed', label: '週三' },
+  { value: 'thu', label: '週四' },
+  { value: 'fri', label: '週五' },
+  { value: 'sat', label: '週六' },
+  { value: 'sun', label: '週日' },
+];
+
 export const TIER_MODES = [
   { value: 'flat', label: '單一比率' },
   { value: 'spend', label: '消費級距' },

@@ -554,6 +554,22 @@ describe('lint (impossible match → relatedIds on conflicting conditions)', () 
   });
 });
 
+describe('時段條件(卡友日:星期/每月某號,由交易日期推算)', () => {
+  it('週五規則只在週五命中(tx.date 推算星期;或顯式 dayOfWeek)', () => {
+    const fri = db({ r: rule({ match: { day_of_week: ['fri'] }, reward: cash(0.05) }) });
+    expect(simulate(fri, { amount: 1000, date: '2026-06-19' }).cashback).toBe(50); // 週五
+    expect(simulate(fri, { amount: 1000, date: '2026-06-21' }).cashback).toBe(0);  // 週日
+    expect(simulate(fri, { amount: 1000, dayOfWeek: 'fri' }).cashback).toBe(50);   // 顯式情境
+    expect(simulate(fri, { amount: 1000 }).cashback).toBe(0);                       // 無日期/星期 → 不命中
+  });
+  it('每月某號(day_of_month)由日期推算', () => {
+    const dom = db({ r: rule({ match: { day_of_month: [1, 20] }, reward: cash(0.05) }) });
+    expect(simulate(dom, { amount: 1000, date: '2026-06-01' }).cashback).toBe(50);
+    expect(simulate(dom, { amount: 1000, date: '2026-06-20' }).cashback).toBe(50);
+    expect(simulate(dom, { amount: 1000, date: '2026-06-15' }).cashback).toBe(0);
+  });
+});
+
 describe('品牌數級距(踩點 distinct_count;情境給家數,取最高符合檔)', () => {
   const j = db({ r: rule({ reward: cash(0), tiers: { mode: 'distinct_count', bands: [
     { min_count: 2, rate: 0.01 }, { min_count: 3, rate: 0.02 }, { min_count: 5, rate: 0.04 },

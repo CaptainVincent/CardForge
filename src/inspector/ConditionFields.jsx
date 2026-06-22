@@ -4,7 +4,7 @@ import MerchantField from './fields/MerchantField';
 import NumberField from './fields/NumberField';
 import CustomPredicateEditor from './fields/CustomPredicateEditor';
 import FieldGroup from './fields/FieldGroup';
-import { CURRENCY_OPTIONS, CHANNEL_OPTIONS, CATEGORY_OPTIONS, PM_OPTIONS, REGION_OPTIONS } from '../lib/options';
+import { CURRENCY_OPTIONS, CHANNEL_OPTIONS, CATEGORY_OPTIONS, PM_OPTIONS, REGION_OPTIONS, WEEKDAY_OPTIONS } from '../lib/options';
 import { useFlowStore } from '../store/flowStore';
 
 const POLARITY_OPTIONS = [
@@ -94,6 +94,21 @@ export default function ConditionFields({ data, update }) {
           placeholder="不限"
           onChange={(v) => update({ minAmountTwd: v })}
         />
+        <ChipMultiSelect
+          label="星期（卡友日／週幾限定,多選）"
+          values={data.dayOfWeek || []}
+          options={WEEKDAY_OPTIONS}
+          onChange={(v) => update({ dayOfWeek: v })}
+        />
+        <label className="block">
+          <span className="cf-field-label">每月日期<span className="text-[var(--cf-text-faint)]">(號,逗號分隔。例:1, 20)</span></span>
+          <input
+            className="cf-input"
+            value={(data.dayOfMonth || []).join(', ')}
+            placeholder="不限"
+            onChange={(e) => update({ dayOfMonth: e.target.value.split(',').map((s) => parseInt(s.trim(), 10)).filter((n) => n >= 1 && n <= 31) })}
+          />
+        </label>
         <CustomPredicateEditor
           rules={data.custom || []}
           onChange={(v) => update({ custom: v })}

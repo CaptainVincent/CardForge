@@ -104,6 +104,21 @@ function mccMatch(list, code) {
   });
 }
 
+// Time conditions (卡友日/週幾、每月某號) are TRANSACTION ATTRIBUTES: derived
+// from the txn's date (explicit tx.dayOfWeek/dayOfMonth wins for date-less 試算).
+const WEEKDAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+function weekdayOf(tx) {
+  if (tx.dayOfWeek) return tx.dayOfWeek;
+  const [y, m, d] = String(tx.date || '').split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+}
+function domOf(tx) {
+  if (tx.dayOfMonth != null && tx.dayOfMonth !== '') return Number(tx.dayOfMonth);
+  const d = Number(String(tx.date || '').split('-')[2]);
+  return Number.isFinite(d) && d > 0 ? d : null;
+}
+
 function matchClause(m, tx) {
   if (!m) return true;
   if (m.is_overseas != null && tx.isOverseas !== m.is_overseas) return false;
@@ -114,6 +129,8 @@ function matchClause(m, tx) {
   if (m.merchants?.length && !m.merchants.includes(tx.merchant)) return false;
   if (m.payment_methods?.length && !m.payment_methods.includes(tx.paymentMethod)) return false;
   if (m.min_amount_twd && Number(tx.amount) < m.min_amount_twd) return false;
+  if (m.day_of_week?.length) { const wd = weekdayOf(tx); if (!wd || !m.day_of_week.includes(wd)) return false; }
+  if (m.day_of_month?.length) { const dom = domOf(tx); if (dom == null || !m.day_of_month.map(Number).includes(dom)) return false; }
   if (m.custom?.length && !m.custom.every((p) => evalPredicate(p, tx.custom))) return false;
   // Cross-field OR groups (CNF clauses): each group must have ≥1 matching alt.
   if (m.or_groups?.length && !m.or_groups.every((g) => g.some((sub) => matchClause(sub, tx)))) return false;

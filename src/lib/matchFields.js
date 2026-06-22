@@ -15,4 +15,7 @@ export const MATCH_LIST_FIELDS = [
   { json: 'mcc', node: 'mcc' },
   { json: 'merchants', node: 'merchants' },
   { json: 'payment_methods', node: 'paymentMethods' },
+  // 時間條件(卡友日/週幾、每月某號)— 交易日期屬性,引擎由 tx.date 推算。
+  { json: 'day_of_week', node: 'dayOfWeek' },   // ['mon'..'sun']
+  { json: 'day_of_month', node: 'dayOfMonth' }, // [1..31]
 ];
