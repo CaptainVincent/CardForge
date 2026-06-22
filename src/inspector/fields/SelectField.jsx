@@ -1,8 +1,7 @@
-const normalize = (options) =>
-  options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
+import { normalizeOption } from '../../lib/options';
 
 export default function SelectField({ label, value, onChange, options }) {
-  const opts = normalize(options);
+  const opts = options.map(normalizeOption);
   return (
     <label className="block">
       <span className="cf-field-label">{label}</span>

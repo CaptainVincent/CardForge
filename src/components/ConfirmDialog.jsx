@@ -28,7 +28,7 @@ export default function ConfirmDialog({
             autoFocus
             onClick={onConfirm}
             className="cf-btn cf-btn--primary"
-            style={danger ? { background: '#d4503a', color: '#fff' } : undefined}
+            style={danger ? { background: 'var(--cf-danger)', color: '#fff' } : undefined}
           >
             {confirmLabel}
           </button>

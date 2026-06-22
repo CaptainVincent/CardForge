@@ -12,7 +12,10 @@ export default function PreviewModal({ json, onClose, onDownload }) {
           <span className="text-sm font-semibold text-[var(--cf-text)]">JSON 預覽</span>
           <div className="flex gap-2">
             <button
-              onClick={() => { navigator.clipboard.writeText(json); toast.success('已複製到剪貼簿'); }}
+              onClick={() => navigator.clipboard.writeText(json).then(
+                () => toast.success('已複製到剪貼簿'),
+                () => toast.error('複製失敗（瀏覽器拒絕剪貼簿存取）')
+              )}
               className="cf-btn cf-btn--quiet"
             >複製</button>
             <button onClick={onClose} className="cf-btn cf-btn--ghost">關閉</button>

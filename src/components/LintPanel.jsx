@@ -4,19 +4,22 @@ export default function LintPanel({ issues, onFocus, onClose }) {
   const errors = issues.filter((i) => i.severity === 'error');
   const warnings = issues.filter((i) => i.severity === 'warning');
 
-  const Row = ({ it }) => (
+  const Row = ({ it }) => {
+    const focusable = it.nodeId || it.relatedIds?.length;
+    return (
     <li>
       <button
-        className={`flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-xs ${it.nodeId ? 'hover:bg-[var(--cf-surface-hover)]' : 'cursor-default'}`}
-        onClick={() => it.nodeId && onFocus(it.nodeId)}
+        className={`flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-xs ${focusable ? 'hover:bg-[var(--cf-surface-hover)]' : 'cursor-default'}`}
+        onClick={() => focusable && onFocus(it)}
       >
-        <span className="mt-0.5 flex-none" style={{ color: it.severity === 'error' ? '#d4503a' : 'var(--cf-warn)' }}>
+        <span className="mt-0.5 flex-none" style={{ color: it.severity === 'error' ? 'var(--cf-danger)' : 'var(--cf-warn)' }}>
           {it.severity === 'error' ? '✕' : '!'}
         </span>
-        <span className="text-[var(--cf-text-dim)]">{it.message}{it.nodeId && <span className="text-[var(--cf-text-faint)]"> ↗</span>}</span>
+        <span className="text-[var(--cf-text-dim)]">{it.message}{focusable && <span className="text-[var(--cf-text-faint)]">{it.relatedIds?.length ? ` ↗ 定位 ${it.relatedIds.length} 處` : ' ↗'}</span>}</span>
       </button>
     </li>
-  );
+    );
+  };
 
   return (
     <ModalOverlay onClose={onClose}>

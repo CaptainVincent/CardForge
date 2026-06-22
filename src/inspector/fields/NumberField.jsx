@@ -1,4 +1,5 @@
 import InfoHint from './InfoHint';
+import { parseNumInput } from '../../lib/options';
 
 export default function NumberField({ label, value, onChange, placeholder, step, hint }) {
   return (
@@ -10,7 +11,7 @@ export default function NumberField({ label, value, onChange, placeholder, step,
         className="cf-input"
         value={value ?? ''}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+        onChange={(e) => onChange(parseNumInput(e.target.value))}
       />
     </label>
   );

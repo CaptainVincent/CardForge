@@ -9,7 +9,9 @@ import AnyFields from './AnyFields';
 import RewardFields from './RewardFields';
 import LimitFields from './LimitFields';
 import GateFields from './GateFields';
+import EligibilityFields from './EligibilityFields';
 import TopFields from './TopFields';
+import SelectFields from './SelectFields';
 
 const FIELDS = {
   card: CardFields,
@@ -18,7 +20,9 @@ const FIELDS = {
   reward: RewardFields,
   limit: LimitFields,
   gate: GateFields,
+  eligibility: EligibilityFields,
   top: TopFields,
+  select: SelectFields,
 };
 
 export default function Inspector() {
@@ -30,7 +34,7 @@ export default function Inspector() {
   const updateNodeData = useFlowStore((s) => s.updateNodeData);
   const deleteNode = useFlowStore((s) => s.deleteNode);
 
-  const issues = useMemo(() => (node ? nodeIssues(node, edges) : []), [node, edges]);
+  const issues = useMemo(() => (node ? nodeIssues(node, edges, nodes) : []), [node, edges, nodes]);
 
   // Live reward rate feeding the selected limit node (for the "≈ spend cap" hint).
   const parentRate = useMemo(() => {
@@ -81,18 +85,18 @@ export default function Inspector() {
           >
             <div className="mb-1 text-[11px] font-medium" style={{ color: 'var(--cf-warn)' }}>待完成</div>
             <ul className="list-inside list-disc space-y-0.5 text-[11px] text-[var(--cf-text-dim)]">
-              {issues.map((msg) => <li key={msg}>{msg}</li>)}
+              {issues.map((it) => <li key={it.message}>{it.message}</li>)}
             </ul>
           </div>
         )}
-        {Fields ? <Fields data={node.data || {}} update={update} parentRate={parentRate} /> : null}
+        {Fields ? <Fields data={node.data || {}} update={update} parentRate={parentRate} nodeId={node.id} /> : null}
       </div>
 
       {node.type !== 'card' && (
         <footer className="border-t border-[var(--cf-border)] p-3">
           <button
             onClick={() => deleteNode(node.id)}
-            className="w-full rounded-lg border border-[var(--cf-border)] py-2 text-xs font-medium text-[var(--cf-text-faint)] transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400"
+            className="w-full rounded-lg border border-[var(--cf-border)] py-2 text-xs font-medium text-[var(--cf-text-faint)] transition-colors hover:border-[var(--cf-danger)]/40 hover:bg-[var(--cf-danger)]/10 hover:text-[var(--cf-danger)]"
           >
             刪除此節點
           </button>

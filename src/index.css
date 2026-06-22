@@ -34,6 +34,7 @@
     "Noto Sans TC", "Microsoft JhengHei", "Hiragino Sans", "Inter", sans-serif;
   --cf-mono: "SF Mono", ui-monospace, "JetBrains Mono", "Menlo", monospace;
   --cf-warn: #b07d2a;          /* 山吹(沈) — incomplete/attention */
+  --cf-danger: #d4503a;        /* 朱(沈) — destructive/remove */
 
   /* Commensurable scale — every size descends from a 4px base (symmetria). */
   --cf-u: 4px;          /* base unit */
@@ -63,6 +64,7 @@
   --cf-on-accent: #1d1d1f;     /* dark text on the white fill */
   --cf-edge: #44474d;
   --cf-warn: #d6a448;
+  --cf-danger: #e0654f;        /* slightly brighter on dark for contrast */
   --cf-primary: #d8d8db;       /* soft light — gentler than pure white */
   --cf-on-primary: #1d1d1f;
 
@@ -113,8 +115,9 @@ body {
   border-radius: var(--cf-radius-sm);
   display: grid;
   place-items: center;
-  color: var(--accent);                          /* glyph carries the whisper of hue */
-  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  color: var(--accent);                          /* glyph carries the hue */
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .cf-node__title { font-size: 13px; font-weight: 600; color: var(--cf-text); line-height: 1.25; letter-spacing: -0.01em; }
 .cf-node__summary {
@@ -173,6 +176,7 @@ body {
   background: var(--cf-elevated);
   border: 1px solid var(--cf-border-strong);
   border-radius: 999px;
+  white-space: nowrap;
 }
 
 /* ---------- Edge labels (且 / AND) ---------- */
@@ -316,7 +320,7 @@ body {
   white-space: nowrap;
 }
 .cf-menu__item:hover { background: var(--cf-surface-hover); color: var(--cf-text); }
-.cf-menu__item--danger:hover { background: color-mix(in srgb, #d4503a 14%, transparent); color: #d4503a; }
+.cf-menu__item--danger:hover { background: color-mix(in srgb, var(--cf-danger) 14%, transparent); color: var(--cf-danger); }
 .cf-menu__header { padding: 7px 10px 3px; font-size: 10px; letter-spacing: 0.05em; color: var(--cf-text-faint); }
 .cf-menu__hint { font-size: 10px; color: var(--cf-text-faint); background: transparent; border: 0; }
 .cf-caret { margin-left: 4px; font-size: 9px; opacity: 0.6; }
@@ -381,6 +385,7 @@ body {
   padding: 5px 11px;
   font-size: 11px;
   font-weight: 500;
+  white-space: nowrap;   /* CJK 標籤不逐字斷行 */
   background: var(--cf-canvas);
   color: var(--cf-text-dim);
   border: 1px solid var(--cf-border);
@@ -418,6 +423,7 @@ body {
   font-size: 11px;
   padding: 5px 8px;
   border-radius: 6px;
+  white-space: nowrap;   /* 分段標籤(符合/未符合、擇優/自選…)不斷行 */
   cursor: pointer;
   transition: all 0.12s ease;
 }
@@ -453,6 +459,40 @@ body {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--h) 22%, transparent);
 }
 
+/* Disabled path (是 reward is_active:false 或其只由停用路徑供給的下游,如上限) */
+/* 無用路徑(停用 或 資格未符合的下游):挖空(去填色/去陰影)+ 虛線框 + 圖示與文字
+   轉灰。全用語義 token 直接上色,不靠透明度混色 —— 深淺主題皆一致清楚。
+   「實心填色卡 = 有效 / 空心虛線框 = 無用」靠填充與邊框樣式,非 alpha。 */
+.cf-node-dimmed .cf-node {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--cf-border-strong);
+  box-shadow: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.cf-node-dimmed .cf-node__title { color: var(--cf-text-dim); font-weight: 500; }
+.cf-node-dimmed .cf-node__summary { color: var(--cf-text-faint); }
+.cf-node-dimmed .cf-node__icon {
+  background: transparent;
+  border: 1px dashed var(--cf-border-strong);
+  color: var(--cf-text-faint);
+}
+.cf-node-dimmed:hover .cf-node { background: var(--cf-surface-hover); border-color: var(--cf-text-faint); }
+
+/* 暫時高亮(點 lint 提示觸發):把「修正點 + 引入問題的點」整組點亮數秒,
+   用警示色環,與選取(墨色 1px 環)、無用(虛線挖空)各自區隔;能與 dimmed
+   疊加(被點名的下游可能本身就是無用路徑)。reduced-motion 下保留靜態環。 */
+@keyframes cf-flag-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--cf-warn) 55%, transparent), var(--cf-shadow); }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--cf-warn) 28%, transparent), var(--cf-shadow); }
+}
+.cf-node-flagged .cf-node,
+.cf-node-flagged .cf-node--operator {
+  border-color: var(--cf-warn) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cf-warn) 55%, transparent), var(--cf-shadow);
+  animation: cf-flag-pulse 1.1s ease-in-out 2;
+}
+
 /* ---------- Edges ---------- */
 .react-flow__edge-path {
   stroke: var(--cf-edge) !important;
@@ -473,4 +513,4 @@ body {
   color: var(--cf-text-faint); font-size: 13px; line-height: 1; cursor: pointer;
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18); transition: color 0.12s, border-color 0.12s;
 }
-.cf-edge-del:hover { color: #d4503a; border-color: #d4503a; }
+.cf-edge-del:hover { color: var(--cf-danger); border-color: var(--cf-danger); }

@@ -2,6 +2,8 @@ import { useRef, useLayoutEffect } from 'react';
 
 // A textarea that grows to fit its content (no inner scrollbar). Height is reset
 // then set to scrollHeight on every value change (incl. mount / node switch).
+// onChange emits the VALUE (string) — consistent with TextField/NumberField, so
+// callers write onChange={(v) => ...} not onChange={(e) => e.target.value}.
 export default function AutoTextarea({ value = '', onChange, className = '', ...rest }) {
   const ref = useRef(null);
 
@@ -22,7 +24,7 @@ export default function AutoTextarea({ value = '', onChange, className = '', ...
       className={className}
       style={{ overflow: 'hidden', resize: 'none', minHeight: '3.2em' }}
       value={value}
-      onChange={onChange}
+      onChange={(e) => onChange(e.target.value)}
       {...rest}
     />
   );

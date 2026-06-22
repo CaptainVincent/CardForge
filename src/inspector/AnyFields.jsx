@@ -31,7 +31,7 @@ export default function AnyFields({ data, update }) {
           <div className="flex items-center justify-between">
             <span className="cf-field-label !mb-0">替代 {i + 1}</span>
             {alts.length > 1 && (
-              <button type="button" className="text-[var(--cf-text-faint)] hover:text-[#d4503a]" onClick={() => removeAlt(i)}>✕</button>
+              <button type="button" className="text-[var(--cf-text-faint)] hover:text-[var(--cf-danger)]" onClick={() => removeAlt(i)}>✕</button>
             )}
           </div>
           {/* same axis order as ConditionFields: 消費對象 → 支付與通路 → 情境 */}

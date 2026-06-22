@@ -1,21 +1,21 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useContext } from 'react';
 import { nodeTitle, nodeAccent } from '../lib/summary';
 import { nodeKind } from './registry';
 import { NodeGlyph, Plus } from '../lib/icons';
-import { nodeIssues } from '../lib/validate';
 import { EXPECTED_TARGETS } from '../lib/connectionRules';
 import { useEscapeKey } from '../hooks/useEscapeKey';
 import { useFlowStore } from '../store/flowStore';
+import { NodeBadgeContext } from './NodeBadgeContext';
 
 // Presentational node card: icon + title + one-line summary.
 // `children` are the React Flow <Handle>s (absolutely positioned by RF).
 export default function NodeShell({ id, type, accent, selected, summary, children }) {
-  const hasIssue = useFlowStore((s) => {
-    const n = s.nodes.find((x) => x.id === id);
-    return n ? nodeIssues(n, s.edges).length > 0 : false;
-  });
+  // Issue dot + incoming count come from App's shared badge map (one O(N+E) pass)
+  // instead of each node running its own O(N) store selector.
+  const badge = useContext(NodeBadgeContext)?.get(id);
+  const hasIssue = badge?.hasIssue ?? false;
   // ≥2 incoming edges = OR (any one path qualifies) — DNF "sum" boundary.
-  const incomingCount = useFlowStore((s) => s.edges.filter((e) => e.target === id).length);
+  const incomingCount = badge?.incomingCount ?? 0;
   const addConnectedNode = useFlowStore((s) => s.addConnectedNode);
   const allowed = EXPECTED_TARGETS[type] || [];
   const [menuOpen, setMenuOpen] = useState(false);

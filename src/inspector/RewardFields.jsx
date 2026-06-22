@@ -105,14 +105,14 @@ export default function RewardFields({ data, update }) {
           </div>
         </div>
 
-        <label className="flex cursor-pointer items-center gap-2 text-xs text-[var(--cf-text-dim)]">
-          <input
-            type="checkbox"
-            checked={!!data.requiresActivation}
-            onChange={(e) => update({ requiresActivation: e.target.checked })}
-          />
-          需手動登錄活動（activation）
-        </label>
+        <NumberField
+          label="首刷期限(開卡後 N 天,選填)"
+          step="1"
+          value={data.fromOpeningDays ?? ''}
+          placeholder="例:90(核卡 90 天內)"
+          hint="新戶首刷禮:檔期 = 持卡開始日起算 N 天(在卡片設定「持卡開始日」)。常配「門檻(總額)+ 里程碑(達標給一次)」。"
+          onChange={(v) => update({ fromOpeningDays: v })}
+        />
 
         <div>
           <span className="cf-field-label">備註（選填）<InfoHint text="純文字附註,隨規則一起匯出/匯入;不參與試算。能用欄位/條件表達的細則請優先結構化,別只寫這裡。" /></span>
@@ -120,7 +120,7 @@ export default function RewardFields({ data, update }) {
             className="cf-input !text-[11px] leading-relaxed"
             value={data.note || ''}
             placeholder="引擎無法精確表達的細則,例：喬山限街邊門市、不含稅與保費"
-            onChange={(e) => update({ note: e.target.value })}
+            onChange={(v) => update({ note: v })}
           />
         </div>
       </FieldGroup>

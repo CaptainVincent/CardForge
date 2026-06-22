@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useCallback, useRef, useMemo, lazy, Suspense } from 'react';
 import {
   ReactFlow,
   useReactFlow,
@@ -19,12 +19,23 @@ import DropMenu from './components/DropMenu';
 import DeletableEdge from './components/DeletableEdge';
 
 const edgeTypes = { default: DeletableEdge };
-import PreviewModal from './components/PreviewModal';
-import ImportModal from './components/ImportModal';
-import AnalyzePanel from './components/AnalyzePanel';
+
+// The React Flow node id under a screen point (the node sits behind the
+// connection-line overlay mid-drag), or null. Used to hit-test connection drops.
+function nodeIdAtPoint(x, y) {
+  if (x == null || y == null) return null;
+  const el = document.elementsFromPoint(x, y).find((e) => e.classList?.contains('react-flow__node'));
+  return el?.getAttribute('data-id') || null;
+}
+
 import LintPanel from './components/LintPanel';
-import SampleGallery from './components/SampleGallery';
 import ConfirmDialog from './components/ConfirmDialog';
+// Modals are opened on demand → lazy-load so their code (incl. the simulate /
+// recommend engine pulled in by AnalyzePanel) stays off the first paint.
+const PreviewModal = lazy(() => import('./components/PreviewModal'));
+const ImportModal = lazy(() => import('./components/ImportModal'));
+const AnalyzePanel = lazy(() => import('./components/AnalyzePanel'));
+const SampleGallery = lazy(() => import('./components/SampleGallery'));
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useFlowStore, useTemporalStore } from './store/flowStore';
@@ -32,9 +43,11 @@ import { useSettings } from './store/settings';
 import { makeIsValidConnection, EXPECTED_TARGETS, isExpected, edgeIssue } from './lib/connectionRules';
 import { lintGraph, lintSummary } from './lib/lint';
 import { layoutGraph } from './lib/autoLayout';
-import { graphIssueCount } from './lib/validate';
+import { graphIssueCount, nodeIssues } from './lib/validate';
 import { exportToJson, downloadJson } from './lib/exportJson';
 import { importFromJson } from './lib/importJson';
+import { inactiveNodeIds } from './lib/decorate.js';
+import { NodeBadgeContext } from './nodes/NodeBadgeContext';
 
 function FlowEditor() {
   const nodes = useFlowStore((s) => s.nodes);
@@ -45,6 +58,7 @@ function FlowEditor() {
   const addNodeStore = useFlowStore((s) => s.addNode);
   const connectStore = useFlowStore((s) => s.connect);
   const importGraph = useFlowStore((s) => s.importGraph);
+  const appendGraph = useFlowStore((s) => s.appendGraph);
   const setSelected = useFlowStore((s) => s.setSelected);
   const duplicateNode = useFlowStore((s) => s.duplicateNode);
   const copySubtree = useFlowStore((s) => s.copySubtree);
@@ -64,26 +78,69 @@ function FlowEditor() {
   const [showSamples, setShowSamples] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
+  const [flaggedIds, setFlaggedIds] = useState(() => new Set());
+  const flagTimer = useRef(null);
 
   const pointPrograms = useSettings((s) => s.pointPrograms);
-  const issues = useMemo(() => lintGraph(nodes, edges, pointPrograms), [nodes, edges, pointPrograms]);
+
+  // Structure/data signature that EXCLUDES position (node.data has no position).
+  // Heavy derived state (lint+export, dim/lock, badges) keys off this so dragging
+  // a node — which only changes position — reuses the cached result instead of
+  // re-running. Cheaper to build (one O(N) stringify) than the work it guards.
+  const structureKey = useMemo(
+    () => JSON.stringify(nodes.map((n) => [n.id, n.type, n.data])) + '|' + edges.map((e) => `${e.source}>${e.target}`).join(','),
+    [nodes, edges]
+  );
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- structureKey captures the relevant slice of nodes/edges
+  const issues = useMemo(() => lintGraph(nodes, edges, pointPrograms), [structureKey, pointPrograms]);
   const lint = lintSummary(issues);
 
-  const focusNode = useCallback((nodeId) => {
-    const n = useFlowStore.getState().nodes.find((x) => x.id === nodeId);
-    if (!n) return;
-    setSelected(nodeId);
-    setNodes(useFlowStore.getState().nodes.map((x) =>
-      x.selected === (x.id === nodeId) ? x : { ...x, selected: x.id === nodeId }
-    ));
-    setCenter(n.position.x + 100, n.position.y + 40, { zoom: 1.1, duration: 400 });
+  // Per-node badges (issue dot + incoming count) — computed once, shared via
+  // context, so each NodeShell no longer runs its own O(N) store selector.
+  const nodeBadges = useMemo(() => {
+    const inc = new Map();
+    for (const e of edges) inc.set(e.target, (inc.get(e.target) || 0) + 1);
+    const m = new Map();
+    for (const n of nodes) m.set(n.id, { hasIssue: nodeIssues(n, edges, nodes).length > 0, incomingCount: inc.get(n.id) || 0 });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by structureKey
+  }, [structureKey]);
+
+  // Jump to a lint issue. An issue carries the nodes that introduced it
+  // (relatedIds) and optionally a distinct fix node (nodeId) — these can live
+  // apart (e.g. a card-level field vs the limits that reference it), or there may
+  // be no single fix node at all (e.g. a contradiction spread across conditions).
+  // We open the Inspector on the fix node (or the first related node), frame the
+  // WHOLE set together, and transiently ring them all (warn colour, ~2.6s) so
+  // "where it's caused ↔ where to fix" is visible at once. Single-node issues
+  // degrade to a plain center.
+  const focusIssue = useCallback((issue) => {
+    const cur = useFlowStore.getState().nodes;
+    const has = (id) => id != null && cur.some((x) => x.id === id);
+    const related = (issue?.relatedIds || []).filter(has);
+    const fixId = has(issue?.nodeId) ? issue.nodeId : related[0];
+    if (!fixId) return;
+    const fix = cur.find((x) => x.id === fixId);
+    const involved = [...new Set([fixId, ...related])];
+    setSelected(fixId);
+    setNodes(cur.map((x) => (x.selected === (x.id === fixId) ? x : { ...x, selected: x.id === fixId })));
+    if (involved.length > 1) {
+      fitView({ nodes: involved.map((id) => ({ id })), padding: 0.4, duration: 450, maxZoom: 1.1 });
+    } else {
+      setCenter(fix.position.x + 100, fix.position.y + 40, { zoom: 1.1, duration: 400 });
+    }
+    if (flagTimer.current) clearTimeout(flagTimer.current);
+    setFlaggedIds(new Set(involved));
+    flagTimer.current = setTimeout(() => setFlaggedIds(new Set()), 2600);
     setShowLint(false);
-  }, [setSelected, setNodes, setCenter]);
+  }, [setSelected, setNodes, setCenter, fitView]);
 
   const nodeTypeById = useMemo(() => {
     const map = new Map(nodes.map((n) => [n.id, n.type]));
     return (id) => map.get(id);
-  }, [nodes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- types/topology only (structureKey), not position
+  }, [structureKey]);
   const isValidConnection = useMemo(() => makeIsValidConnection(nodeTypeById), [nodeTypeById]);
 
   // Label condition→condition edges with 且 (AND) so the implicit DNF reads clearly.
@@ -95,6 +152,25 @@ function FlowEditor() {
     ),
     [edges, nodeTypeById]
   );
+
+  // Inactive (useless) paths — ONE concept, ONE visual: a reward that earns
+  // nothing by default (disabled, or gated by a not-符合 資格) and everything
+  // reachable only through it. Mirrors the engine's skip logic.
+  const inactiveIds = useMemo(
+    () => inactiveNodeIds(nodes, edges),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by structureKey (ids stable across drag)
+    [structureKey]
+  );
+
+  const displayNodes = useMemo(() => {
+    if (!inactiveIds.size && !flaggedIds.size) return nodes;
+    return nodes.map((n) => {
+      let cls = n.className || '';
+      if (inactiveIds.has(n.id)) cls = `${cls} cf-node-dimmed`.trim();
+      if (flaggedIds.has(n.id)) cls = `${cls} cf-node-flagged`.trim();
+      return cls === (n.className || '') ? n : { ...n, className: cls };
+    });
+  }, [nodes, inactiveIds, flaggedIds]);
 
   const onConnect = useCallback((params) => {
     connectingFrom.current = null;
@@ -116,18 +192,15 @@ function FlowEditor() {
     // as empty drops, so hit-test the pointer (the node sits behind the
     // connection-line overlay). A valid edge was already made by onConnect; an
     // unexpected target means the connection was cancelled — explain why.
-    if (clientX != null) {
-      const nodeEl = document.elementsFromPoint(clientX, clientY).find((el) => el.classList?.contains('react-flow__node'));
-      const targetId = nodeEl?.getAttribute('data-id');
-      if (targetId && targetId !== fromId) {
-        const targetType = nodeTypeById(targetId);
-        if (sourceType && targetType && !isExpected(sourceType, targetType)) {
-          const reason = edgeIssue(sourceType, targetType);
-          if (reason) toast.error(reason);
-        }
-        connectingFrom.current = null;
-        return;
+    const targetId = nodeIdAtPoint(clientX, clientY);
+    if (targetId && targetId !== fromId) {
+      const targetType = nodeTypeById(targetId);
+      if (sourceType && targetType && !isExpected(sourceType, targetType)) {
+        const reason = edgeIssue(sourceType, targetType);
+        if (reason) toast.error(reason);
       }
+      connectingFrom.current = null;
+      return;
     }
 
     // Dropped on empty canvas → offer the sensible next nodes.
@@ -185,26 +258,39 @@ function FlowEditor() {
   }, [setNodes, fitView]);
 
   // Single import path: every source (file / paste / url / sample) parses to a
-  // db object then flows through here.
-  const applyDb = useCallback((db, successMsg) => {
+  // db object then flows through here. `append` merges into the current canvas
+  // (placed below); otherwise it replaces the canvas.
+  const applyDb = useCallback((db, { append = false, successMsg } = {}) => {
     const { nodes: nn, edges: ee, pointPrograms } = importFromJson(db);
-    importGraph(layoutGraph(nn, ee), ee);
+    const laid = layoutGraph(nn, ee);
+    if (append) appendGraph(laid, ee); else importGraph(laid, ee);
     useSettings.getState().mergePointPrograms(pointPrograms);
     setTimeout(() => fitView({ duration: 300 }), 60);
-    toast.success(successMsg ?? `已匯入 ${nn.length} 個節點`);
-  }, [importGraph, fitView]);
+    toast.success(successMsg ?? `已${append ? '加入' : '匯入'} ${nn.length} 個節點`);
+  }, [importGraph, appendGraph, fitView]);
 
-  const handleImportText = useCallback((text) => {
+  // Multiple sources (files / urls / paste) → parse each → merge cards +
+  // point_programs into one db → one import (replace or append).
+  const handleImportTexts = useCallback((texts, { append = false } = {}) => {
     try {
-      applyDb(JSON.parse(text));
+      const cards = [];
+      const point_programs = {};
+      for (const t of texts) {
+        const db = JSON.parse(t);
+        if (Array.isArray(db.cards)) cards.push(...db.cards);
+        else if (db.card || db.rules) cards.push(db);
+        Object.assign(point_programs, db.point_programs || {});
+      }
+      if (!cards.length) throw new Error('找不到任何卡片');
+      applyDb({ cards, point_programs }, { append, successMsg: `已${append ? '加入' : '匯入'} ${cards.length} 張卡` });
       setShowImport(false);
     } catch (err) {
-      toast.error('JSON 解析失敗：' + err.message);
+      toast.error('匯入失敗：' + err.message);
     }
   }, [applyDb]);
 
   const loadSample = useCallback((sample) => {
-    applyDb(sample.db, `已載入範例：${sample.name}`);
+    applyDb(sample.db, { successMsg: `已載入範例：${sample.name}` });
     setShowSamples(false);
   }, [applyDb]);
 
@@ -250,7 +336,7 @@ function FlowEditor() {
     if (root) { toast.success('已貼上'); setTimeout(() => fitView({ duration: 300 }), 60); }
     else toast('剪貼簿是空的，先按 ⌘C 複製一個節點');
   }, [pasteClipboard, fitView]);
-  useKeyboardShortcuts({ onDuplicate: duplicateNode, onCopy: handleCopy, onPaste: handlePaste, onExport: handleExport });
+  useKeyboardShortcuts({ onDuplicate: duplicateNode, onCopy: handleCopy, onPaste: handlePaste });
 
   return (
     <div className="flex h-dvh flex-col bg-[var(--cf-canvas)]">
@@ -276,8 +362,9 @@ function FlowEditor() {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="relative flex-1">
+         <NodeBadgeContext.Provider value={nodeBadges}>
           <ReactFlow
-            nodes={nodes}
+            nodes={displayNodes}
             edges={labeledEdges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
@@ -313,6 +400,7 @@ function FlowEditor() {
               串聯=且(AND) · 分支=任一(OR) · 節點上的 + 新增 · Delete 刪除
             </Panel>
           </ReactFlow>
+         </NodeBadgeContext.Provider>
 
           <DropMenu menu={dropMenu} onPick={pickFromDropMenu} onClose={() => setDropMenu(null)} />
         </div>
@@ -321,20 +409,22 @@ function FlowEditor() {
       </div>
 
       <Toaster theme={theme} position="bottom-right" richColors />
-      {previewJson != null && (
-        <PreviewModal json={previewJson} onClose={() => setPreviewJson(null)} onDownload={handleExport} />
-      )}
-      {showTest && (
-        <AnalyzePanel nodes={nodes} edges={edges} onClose={() => setShowTest(false)} />
-      )}
+      <Suspense fallback={null}>
+        {previewJson != null && (
+          <PreviewModal json={previewJson} onClose={() => setPreviewJson(null)} onDownload={handleExport} />
+        )}
+        {showTest && (
+          <AnalyzePanel nodes={nodes} edges={edges} onClose={() => setShowTest(false)} />
+        )}
+        {showImport && (
+          <ImportModal onClose={() => setShowImport(false)} onSubmitTexts={handleImportTexts} />
+        )}
+        {showSamples && (
+          <SampleGallery onLoad={handleLoadSample} onClose={() => setShowSamples(false)} />
+        )}
+      </Suspense>
       {showLint && (
-        <LintPanel issues={issues} onFocus={focusNode} onClose={() => setShowLint(false)} />
-      )}
-      {showImport && (
-        <ImportModal onClose={() => setShowImport(false)} onSubmitText={handleImportText} />
-      )}
-      {showSamples && (
-        <SampleGallery onLoad={handleLoadSample} onClose={() => setShowSamples(false)} />
+        <LintPanel issues={issues} onFocus={focusIssue} onClose={() => setShowLint(false)} />
       )}
       {confirmDialog && (
         <ConfirmDialog

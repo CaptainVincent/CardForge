@@ -48,6 +48,10 @@ export function effectiveRate(program, isoDate) {
   return i < 0 ? undefined : program.rates[i].rate;
 }
 
+// The engine's {name: rate} valuation map at a date (unconfigured → 1).
+export const ratesAsOf = (pointPrograms, isoDate) =>
+  Object.fromEntries(Object.entries(pointPrograms || {}).map(([n, p]) => [n, effectiveRate(p, isoDate) ?? 1]));
+
 export const useSettings = create((set) => ({
   pointPrograms: initPrograms(),
 

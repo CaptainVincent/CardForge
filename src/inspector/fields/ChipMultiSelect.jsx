@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import InfoHint from './InfoHint';
-
-const normalize = (o) => (typeof o === 'string' ? { value: o, label: o } : o);
+import { normalizeOption } from '../../lib/options';
 
 export default function ChipMultiSelect({ label, values = [], options = [], custom = [], onChange, onAddCustom, hint }) {
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState('');
 
-  const opts = [...options, ...custom].map(normalize);
+  const opts = [...options, ...custom].map(normalizeOption);
   // Surface any selected values not in presets/custom (e.g. imported) as chips.
   const known = new Set(opts.map((o) => o.value));
   const extra = values.filter((v) => !known.has(v)).map((v) => ({ value: v, label: v }));

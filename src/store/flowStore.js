@@ -28,6 +28,16 @@ function subtreeOf(nodes, edges, rootId) {
     subEdges: edges.filter((e) => keep.has(e.source) && keep.has(e.target)).map((e) => ({ ...e })),
   };
 }
+// Reward node ids feeding a 擇優 node (its candidate members).
+function selectMemberIds(nodes, edges, selectId) {
+  return new Set(
+    edges
+      .filter((e) => e.target === selectId)
+      .map((e) => nodes.find((n) => n.id === e.source))
+      .filter((n) => n?.type === 'reward')
+      .map((n) => n.id)
+  );
+}
 // Bounding box of a node set (positions + measured/estimated sizes).
 function bboxOf(nodes) {
   let minX = Infinity; let minY = Infinity; let maxR = -Infinity; let maxB = -Infinity;
@@ -109,6 +119,9 @@ export const useFlowStore = create(
       onEdgesChange: (changes) =>
         set((state) => ({ edges: applyEdgeChanges(changes, state.edges) })),
 
+      // Add an edge from a {source,target[,handles]} connection. Exposed under
+      // two names kept for call-site clarity (React Flow's onConnect handler vs
+      // imperative connect()); identical behaviour.
       onConnect: (params) =>
         set((state) => ({ edges: addEdge(defaultEdge(params), state.edges) })),
 
@@ -119,8 +132,7 @@ export const useFlowStore = create(
         return id;
       },
 
-      connect: (params) =>
-        set((state) => ({ edges: addEdge(defaultEdge(params), state.edges) })),
+      connect: (params) => get().onConnect(params),
 
       // Append a new node already connected to `sourceId`, positioned to its
       // right, and select it — the Dify/n8n "click +" flow.
@@ -151,6 +163,31 @@ export const useFlowStore = create(
             n.id === id ? { ...n, data: { ...n.data, ...patch } } : n
           ),
         })),
+
+      // 擇優節點的不變式守門人(取代 UI 直接突變成員 isActive)。
+      // best=全部納入比較;pick=全部停用,等使用者擇一。
+      setSelectMode: (selectId, mode) =>
+        set((state) => {
+          const memberIds = selectMemberIds(state.nodes, state.edges, selectId);
+          return {
+            nodes: state.nodes.map((n) => {
+              if (n.id === selectId) return { ...n, data: { ...n.data, mode } };
+              if (memberIds.has(n.id)) return { ...n, data: { ...n.data, isActive: mode === 'best' } };
+              return n;
+            }),
+          };
+        }),
+
+      // pick:採用 memberId 那條(設為唯一 active),其餘停用。
+      pickSelectMember: (selectId, memberId) =>
+        set((state) => {
+          const memberIds = selectMemberIds(state.nodes, state.edges, selectId);
+          return {
+            nodes: state.nodes.map((n) =>
+              memberIds.has(n.id) ? { ...n, data: { ...n.data, isActive: n.id === memberId } } : n
+            ),
+          };
+        }),
 
       deleteNode: (id) =>
         set((state) => ({
@@ -226,6 +263,36 @@ export const useFlowStore = create(
       setSelected: (id) => set({ selectedNodeId: id }),
 
       importGraph: (nodes, edges) => set({ nodes, edges, selectedNodeId: null }),
+
+      // Merge an imported subgraph INTO the current canvas (vs replace). Re-ids
+      // every incoming node (imported ids restart at node_1 each call → would
+      // collide), remaps edges, and drops the block below the existing graph.
+      appendGraph: (newNodes, newEdges) =>
+        set((state) => {
+          const cur = state.nodes;
+          const curMaxY = cur.length ? Math.max(...cur.map((n) => n.position.y)) : 0;
+          const newMinY = newNodes.length ? Math.min(...newNodes.map((n) => n.position.y)) : 0;
+          const dy = cur.length ? curMaxY - newMinY + 220 : 0;
+          const idMap = {};
+          for (const n of newNodes) idMap[n.id] = `${n.type}-${nextId()}`;
+          const remap = newNodes.map((n) => ({
+            ...n,
+            id: idMap[n.id],
+            position: { x: n.position.x, y: n.position.y + dy },
+            selected: false,
+          }));
+          const remapEdges = newEdges.map((e) => ({
+            ...e,
+            id: `e-${idMap[e.source]}-${idMap[e.target]}`,
+            source: idMap[e.source],
+            target: idMap[e.target],
+          }));
+          return {
+            nodes: [...cur.map((n) => (n.selected ? { ...n, selected: false } : n)), ...remap],
+            edges: [...state.edges, ...remapEdges],
+            selectedNodeId: null,
+          };
+        }),
 
       reset: () =>
         set({ nodes: INITIAL_NODES, edges: [], selectedNodeId: null }),

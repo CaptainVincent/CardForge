@@ -30,13 +30,22 @@ export default function ConditionFields({ data, update }) {
 
       <FieldGroup title="消費對象">
         <ChipMultiSelect
-          label="類別 / MCC"
+          label="類別"
           values={data.categories || []}
           options={CATEGORY_OPTIONS}
           custom={customOptions.categories}
           onChange={(v) => update({ categories: v })}
           onAddCustom={(l) => addCustomOption('categories', l)}
         />
+        <label className="block">
+          <span className="cf-field-label">MCC<span className="text-[var(--cf-text-faint)]">(碼或範圍,逗號分隔。例:5812, 5811-5814)</span></span>
+          <input
+            className="cf-input font-mono"
+            value={(data.mcc || []).join(', ')}
+            placeholder="不限"
+            onChange={(e) => update({ mcc: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+          />
+        </label>
         <MerchantField
           values={data.merchants || []}
           custom={customOptions.merchants}

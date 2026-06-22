@@ -37,7 +37,7 @@ export default function CustomPredicateEditor({ rules = [], onChange }) {
             <button
               type="button"
               onClick={() => remove(i)}
-              className="px-1 text-[var(--cf-text-faint)] hover:text-red-400"
+              className="px-1 text-[var(--cf-text-faint)] hover:text-[var(--cf-danger)]"
               title="移除"
             >×</button>
           </div>

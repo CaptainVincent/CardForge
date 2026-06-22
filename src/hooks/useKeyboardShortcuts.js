@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useFlowStore, useTemporalStore } from '../store/flowStore';
 
-// Global shortcuts: ⌘Z/⌘⇧Z undo·redo, ⌘D duplicate, ⌘C/⌘V copy·paste, ⌘S export.
+// Global shortcuts: ⌘Z/⌘⇧Z undo·redo, ⌘D duplicate, ⌘C/⌘V copy·paste.
 // Handlers are read through a ref so the listener subscribes once.
 export function useKeyboardShortcuts(handlers) {
   const ref = useRef(handlers);
@@ -32,9 +32,6 @@ export function useKeyboardShortcuts(handlers) {
       } else if (key === 'v') {
         e.preventDefault();
         ref.current.onPaste?.(useFlowStore.getState().selectedNodeId);
-      } else if (key === 's') {
-        e.preventDefault();
-        ref.current.onExport?.();
       }
     };
     window.addEventListener('keydown', onKey);

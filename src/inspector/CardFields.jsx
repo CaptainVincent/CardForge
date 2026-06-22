@@ -37,6 +37,18 @@ export default function CardFields({ data, update }) {
         placeholder="1.5"
         onChange={(v) => update({ fxFeeRate: v })}
       />
+      <NumberField
+        label="帳單結帳日 (選填)"
+        step="1"
+        value={data.statementDay ?? ''}
+        placeholder="例:5(每月 5 日結帳)"
+        hint="設定後,週期為「帳單週期」的上限/門檻才依結帳日切;不填則退回月。"
+        onChange={(v) => update({ statementDay: v })}
+      />
+      <label className="block">
+        <span className="cf-field-label">持卡開始日 (選填)<span className="text-[var(--cf-text-faint)]">(新戶首刷期限起算)</span></span>
+        <input type="date" className="cf-input" value={data.opened || ''} onChange={(e) => update({ opened: e.target.value || null })} />
+      </label>
     </>
   );
 }

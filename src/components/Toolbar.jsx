@@ -40,7 +40,7 @@ export default function Toolbar({
   const dataItems = [
     { label: '匯入 JSON', hint: '檔案/貼上/網址', onClick: onOpenImport },
     { label: 'JSON 預覽', onClick: onPreview },
-    { label: '匯出 JSON', hint: '⌘S', onClick: onExport },
+    { label: '匯出 JSON', onClick: onExport },
   ];
 
   return (
@@ -56,7 +56,7 @@ export default function Toolbar({
         title="規則檢查"
         className="rounded px-1.5 py-0.5 text-[11px]"
         style={
-          lintErrors ? { color: '#d4503a', background: 'color-mix(in srgb,#d4503a 12%,transparent)' }
+          lintErrors ? { color: 'var(--cf-danger)', background: 'color-mix(in srgb,var(--cf-danger) 12%,transparent)' }
           : lintWarnings ? { color: 'var(--cf-warn)', background: 'color-mix(in srgb,var(--cf-warn) 14%,transparent)' }
           : { color: 'var(--cf-text-faint)', background: 'var(--cf-surface)' }
         }

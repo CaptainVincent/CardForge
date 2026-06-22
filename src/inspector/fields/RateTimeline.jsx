@@ -1,7 +1,7 @@
 // Vertical timeline editor for a point's value-over-time. Renders a left rail
 // with dots: 起始 (no date, covers card-activation) then dated changes, newest
 // dot filled = current value. `onChange` receives the full new rates array.
-import { sortByFrom } from '../../lib/options';
+import { sortByFrom, parseNumInput } from '../../lib/options';
 
 export default function RateTimeline({ rates, onChange, today }) {
   const list = [...(rates?.length ? rates : [{ from: null, rate: 1 }])].sort(sortByFrom);
@@ -25,9 +25,9 @@ export default function RateTimeline({ rates, onChange, today }) {
               ? <span className="flex-1 text-[11px] text-[var(--cf-text-faint)]" title="第一筆涵蓋到卡片啟用日">起始</span>
               : <input type="date" className="cf-input !mt-0 flex-1 !py-1 !text-[11px]" value={r.from} onChange={(e) => update(i, { from: e.target.value || today })} />}
             <span className="text-[11px] text-[var(--cf-text-faint)]">$</span>
-            <input type="number" step="0.1" className="cf-input !mt-0 !w-16 flex-none !py-1" value={r.rate ?? ''} onChange={(e) => update(i, { rate: e.target.value === '' ? null : Number(e.target.value) })} />
+            <input type="number" step="0.1" className="cf-input !mt-0 !w-16 flex-none !py-1" value={r.rate ?? ''} onChange={(e) => update(i, { rate: parseNumInput(e.target.value) })} />
             {r.from != null
-              ? <button type="button" className="flex-none text-[var(--cf-text-faint)] hover:text-[#d4503a]" onClick={() => remove(i)}>✕</button>
+              ? <button type="button" className="flex-none text-[var(--cf-text-faint)] hover:text-[var(--cf-danger)]" onClick={() => remove(i)}>✕</button>
               : <span className="w-3 flex-none" />}
           </div>
         ))}

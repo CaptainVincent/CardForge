@@ -1,7 +1,7 @@
 import NumberField from './fields/NumberField';
 import SelectField from './fields/SelectField';
 import InfoHint from './fields/InfoHint';
-import { CYCLES, REWARD_CURRENCIES } from '../lib/options';
+import { CYCLES, REWARD_CURRENCIES, parseNumInput } from '../lib/options';
 
 // A gate unlocks its downstream reward(s) once cumulative spend hits a threshold
 // within the period. Shared (one gate → many rewards) = a pooled unlock.
@@ -17,7 +17,7 @@ export default function GateFields({ data, update }) {
             className="cf-input"
             value={data.threshold ?? ''}
             placeholder="例：5000"
-            onChange={(e) => update({ threshold: e.target.value === '' ? null : Number(e.target.value) })}
+            onChange={(e) => update({ threshold: parseNumInput(e.target.value) })}
           />
           <select
             className="cf-select !w-auto"

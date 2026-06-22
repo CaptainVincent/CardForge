@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react';
 import { exportCards } from '../lib/exportJson';
-import { simulate, simulateMonth, deriveTxFieldsFromJson, mergeFields, netScore, valueOf } from '../lib/simulate';
-import { recommend } from '../lib/recommend';
-import { useSettings, effectiveRate, todayISO } from '../store/settings';
+import { simulate, simulateMonth, deriveTxFieldsFromJson, mergeFields, valueOf } from '../lib/simulate';
+import { recommend, compareCards, usedPointNames } from '../lib/recommend';
+import { useSettings, effectiveRate, ratesAsOf, todayISO } from '../store/settings';
 import ModalOverlay from './ModalOverlay';
 import SegmentedControl from '../inspector/fields/SegmentedControl';
 import RateTimeline from '../inspector/fields/RateTimeline';
 import { CHANNEL_OPTIONS, CATEGORY_OPTIONS, PM_OPTIONS, CURRENCY_OPTIONS, BASIS_OPTIONS, labelOf } from '../lib/options';
 
 const num = (v) => Number(v).toLocaleString();
+// Effective reward rate — every reward product leads with "= X% back".
+const pctText = (value, amount) => (amount > 0 ? `≈ ${((value / amount) * 100).toFixed(1)}% 回饋` : '');
 const TABS = [
   { id: 'test', label: '試算' },
-  { id: 'month', label: '月度' },
+  { id: 'month', label: '週期累積' },
   { id: 'recommend', label: '推薦' },
   { id: 'compare', label: '比較' },
 ];
@@ -19,11 +21,13 @@ const pointsText = (points) => Object.entries(points).map(([n, v]) => `+${num(v)
 
 const txLabel = (t) => {
   const parts = [];
+  if (t.date) parts.push(t.date);
   if (t.isOverseas === true) parts.push('海外');
   else if (t.isOverseas === false) parts.push('國內');
   if (t.currency) parts.push(t.currency);
   (t.channels || []).forEach((c) => parts.push(labelOf(CHANNEL_OPTIONS, c)));
   (t.categories || []).forEach((c) => parts.push(labelOf(CATEGORY_OPTIONS, c)));
+  if (t.mcc) parts.push(`MCC ${t.mcc}`);
   if (t.merchant) parts.push(`@${t.merchant}`);
   if (t.paymentMethod) parts.push(labelOf(PM_OPTIONS, t.paymentMethod));
   return parts.join(' · ') || '一般消費';
@@ -53,21 +57,15 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
   const setCurrentRate = useSettings((s) => s.setCurrentRate);
   const today = todayISO();
   // Engine values points by a plain {name: rate} map — the rate effective today.
-  const rates = useMemo(
-    () => Object.fromEntries(Object.entries(pointPrograms).map(([n, p]) => [n, effectiveRate(p, today) ?? 1])),
-    [pointPrograms, today]
-  );
-  const pointNames = useMemo(
-    () => [...new Set(cards.flatMap((c) => Object.values(c.rules).map((r) => r.reward?.point_name).filter(Boolean)))],
-    [cards]
-  );
+  const rates = useMemo(() => ratesAsOf(pointPrograms, today), [pointPrograms, today]);
+  const pointNames = useMemo(() => usedPointNames(cards), [cards]);
 
   const [tab, setTab] = useState('test');
   const [idx, setIdx] = useState(0);
   const sel = Math.min(idx, Math.max(cards.length - 1, 0));
   const fields = tab === 'compare' ? mergeFields(cardFields.length ? cardFields : [{}]) : (cardFields[sel] || {});
 
-  const [f, setF] = useState({ amount: 1000, region: null, currency: null, channels: [], categories: [], merchant: null, paymentMethod: null, periodSpend: '', custom: {}, hasFee: true });
+  const [f, setF] = useState({ amount: 1000, date: '', region: null, currency: null, channels: [], categories: [], mcc: '', merchant: null, paymentMethod: null, periodSpend: '', custom: {}, hasFee: true });
   const set = (patch) => setF((s) => ({ ...s, ...patch }));
   const toggle = (key, v) => setF((s) => ({ ...s, [key]: s[key].includes(v) ? s[key].filter((x) => x !== v) : [...s[key], v] }));
 
@@ -77,8 +75,12 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
     if (f.currency) t.currency = f.currency;
     if (f.channels.length) t.channels = f.channels;
     if (f.categories.length) t.categories = f.categories;
+    if (f.mcc) t.mcc = f.mcc;
     if (f.merchant) t.merchant = f.merchant;
     if (f.paymentMethod) t.paymentMethod = f.paymentMethod;
+    // 資格情境(新戶/登錄…)不在此覆寫:單一真實來源是資格節點,引擎依各旗標
+    // 的宣告預設判定(未選→視為未符合)。分析只唯讀顯示,見下方「資格情境」。
+    if (f.date) t.date = f.date; // 帶日期 → 多期:依日期生效 + 各週期上限/門檻分別重置
     t.hasFee = f.hasFee;
     return t;
   }, [f]);
@@ -90,13 +92,14 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
     () => (tab === 'month' && json ? simulateMonth(json, monthTxns, rates) : null),
     [tab, json, monthTxns, rates]
   );
-  const testResult = useMemo(() => (json ? simulate(json, fixed, rates) : null), [json, fixed, rates]);
-  const rec = useMemo(() => (json ? recommend(json, fixed, rates) : null), [json, fixed, rates]);
+  const monthSpend = useMemo(() => monthTxns.reduce((s, t) => s + (Number(t.amount) || 0), 0), [monthTxns]);
+  // Each result is gated by its tab so switching cards / editing the form only
+  // recomputes the engine for the view actually on screen (compare = cards × recommend).
+  const testResult = useMemo(() => (tab === 'test' && json ? simulate(json, fixed, rates) : null), [tab, json, fixed, rates]);
+  const rec = useMemo(() => (tab === 'recommend' && json ? recommend(json, fixed, rates) : null), [tab, json, fixed, rates]);
   const compareRows = useMemo(
-    () => cards
-      .map((c) => { const best = recommend(c, fixed, rates).best; return { name: c.card, best, net: best ? netScore(best.result, c, best.tx, rates) : 0 }; })
-      .sort((a, b) => b.net - a.net),
-    [cards, fixed, rates]
+    () => (tab === 'compare' ? compareCards(cards, fixed, rates) : []),
+    [tab, cards, fixed, rates]
   );
   // Any point used by the selected/compared cards valued by an ESTIMATE?
   const usesEstimate = useMemo(
@@ -117,6 +120,12 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
           <button onClick={onClose} className="cf-btn cf-btn--ghost">關閉</button>
         </div>
 
+        {cards.length > 0 && (
+          <p className="border-b border-[var(--cf-border)] px-4 py-1.5 text-[10px] leading-relaxed text-[var(--cf-text-faint)]">
+            交易<strong>不帶日期</strong> = 單一結算週期(total 等同每期);<strong>帶日期</strong>則跨期試算:dated 規則依檔期生效、各週期上限/門檻分別重置、total 上限橫跨。
+          </p>
+        )}
+
         {cards.length === 0 ? (
           <div className="p-8 text-center text-xs text-[var(--cf-text-faint)]">請先建立卡片與規則</div>
         ) : (
@@ -135,6 +144,11 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
               <label className="block">
                 <span className="cf-field-label">消費金額（TWD）</span>
                 <input type="number" className="cf-input" value={f.amount} onChange={(e) => set({ amount: Number(e.target.value) || 0 })} />
+              </label>
+
+              <label className="block">
+                <span className="cf-field-label">消費日期<span className="text-[var(--cf-text-faint)]">(選填;填了才依檔期/跨週期試算)</span></span>
+                <input type="date" className="cf-input" value={f.date} onChange={(e) => set({ date: e.target.value })} />
               </label>
 
               {fields.hasRegion && (
@@ -164,7 +178,13 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                 </label>
               )}
               {fields.channels?.length > 0 && <Chips label="通路" opts={fields.channels} values={f.channels} optionList={CHANNEL_OPTIONS} onToggle={(v) => toggle('channels', v)} />}
-              {fields.categories?.length > 0 && <Chips label="類別 / MCC" opts={fields.categories} values={f.categories} optionList={CATEGORY_OPTIONS} onToggle={(v) => toggle('categories', v)} />}
+              {fields.categories?.length > 0 && <Chips label="類別" opts={fields.categories} values={f.categories} optionList={CATEGORY_OPTIONS} onToggle={(v) => toggle('categories', v)} />}
+              {fields.hasMcc && (
+                <label className="block">
+                  <span className="cf-field-label">MCC<span className="text-[var(--cf-text-faint)]">(此卡有依 MCC 判別的加碼)</span></span>
+                  <input className="cf-input font-mono" value={f.mcc || ''} placeholder="例:5812" onChange={(e) => set({ mcc: e.target.value.trim() })} />
+                </label>
+              )}
               {fields.merchants?.length > 0 && (
                 <label className="block">
                   <span className="cf-field-label">指定特店</span>
@@ -194,6 +214,24 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                   <span className="cf-field-label">本期已累計消費（門檻/級距,選填）</span>
                   <input type="number" className="cf-input" value={f.periodSpend} placeholder="預設＝本次金額" onChange={(e) => set({ periodSpend: e.target.value })} />
                 </label>
+              )}
+
+              {fields.eligibilityFlags?.length > 0 && (
+                <div>
+                  <span className="cf-field-label">資格情境<span className="text-[var(--cf-text-faint)]">（依規則設定,於資格節點調整）</span></span>
+                  <div className="mt-1.5 space-y-1.5">
+                    {fields.eligibilityFlags.map((fl) => {
+                      const state = fl.default === true ? '符合' : fl.default === false ? '未符合' : '未選 → 視為未符合';
+                      const dim = fl.default !== true;
+                      return (
+                        <div key={fl.name} className="flex items-center justify-between gap-2">
+                          <span className="min-w-0 flex-1 truncate text-xs text-[var(--cf-text-dim)]">{fl.name}</span>
+                          <span className="flex-none whitespace-nowrap text-[11px]" style={{ color: dim ? 'var(--cf-text-faint)' : 'var(--cf-text-dim)' }}>{state}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
 
               {pointNames.length > 0 && (
@@ -245,16 +283,16 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
               {tab === 'month' && (
                 <div className="rounded-lg border border-[var(--cf-border)] p-2.5">
                   <div className="flex items-center justify-between">
-                    <span className="cf-field-label !mb-0">本月交易（{monthTxns.length} 筆）</span>
+                    <span className="cf-field-label !mb-0">逐筆交易（{monthTxns.length} 筆,可跨期）</span>
                     <button type="button" className="cf-btn cf-btn--quiet !py-1 !text-[11px]" onClick={() => setMonthTxns((s) => [...s, fixed])}>＋ 加入此筆</button>
                   </div>
-                  <p className="mt-1 text-[11px] text-[var(--cf-text-faint)]">用上方表單設定一筆消費後加入；依序累積期間上限與門檻。</p>
+                  <p className="mt-1 text-[11px] text-[var(--cf-text-faint)]">用上方表單設定一筆消費後加入,依序累積上限與門檻。<strong>填日期</strong>可跨月/季/年(輪動、首刷窗等依日期生效、各週期分別重置)。</p>
                   {monthTxns.length > 0 && (
                     <ul className="mt-2 space-y-1">
                       {monthTxns.map((t, i) => (
-                        <li key={i} className="flex items-center justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
-                          <span className="truncate">{i + 1}. ${num(t.amount)} <span className="text-[var(--cf-text-faint)]">{txLabel(t)}</span></span>
-                          <button type="button" className="flex-none text-[var(--cf-text-faint)] hover:text-[#d4503a]" onClick={() => setMonthTxns((s) => s.filter((_, j) => j !== i))}>✕</button>
+                        <li key={i} className="flex items-start justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
+                          <span className="min-w-0 flex-1 break-words leading-snug">{i + 1}. ${num(t.amount)} <span className="text-[var(--cf-text-faint)]">{txLabel(t)}</span></span>
+                          <button type="button" className="flex-none text-[var(--cf-text-faint)] hover:text-[var(--cf-danger)]" onClick={() => setMonthTxns((s) => s.filter((_, j) => j !== i))}>✕</button>
                         </li>
                       ))}
                     </ul>
@@ -271,7 +309,10 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
               {tab === 'test' && testResult && (
                 <>
                   <div className="rounded-lg border border-[var(--cf-border)] bg-[var(--cf-surface)] p-4">
-                    <div className="text-[11px] text-[var(--cf-text-faint)]">這筆預估回饋</div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[11px] text-[var(--cf-text-faint)]">這筆預估回饋</span>
+                      <span className="text-[11px] font-medium text-[var(--cf-text-dim)]">{pctText(valueOf(testResult, rates), Number(f.amount) || 0)}</span>
+                    </div>
                     <div className="mt-1 text-2xl font-semibold text-[var(--cf-text)]">${num(testResult.cashback)}</div>
                     {Object.entries(testResult.points).map(([n, v]) => <div key={n} className="text-xs text-[var(--cf-text-dim)]">+ {num(v)} {n}</div>)}
                     {Object.keys(testResult.points).length > 0 && (
@@ -282,9 +323,9 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                     <div className="cf-field-label mb-1">命中規則</div>
                     {testResult.fired.length === 0 ? <div className="text-xs text-[var(--cf-text-faint)]">沒有規則命中</div> : (
                       <ul className="space-y-1">{testResult.fired.map((x) => (
-                        <li key={x.id} className="flex items-center justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
-                          <span className="truncate">{x.name}</span>
-                          <span className="flex-none text-[var(--cf-text)]">{x.reward.kind === 'cash' ? `$${num(x.reward.value)}` : `${num(x.reward.value)} ${x.reward.name}`}{x.reward.capped && ' ⤓'}</span>
+                        <li key={x.id} className="flex items-start justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
+                          <span className="min-w-0 flex-1 break-words leading-snug">{x.name}</span>
+                          <span className="flex-none whitespace-nowrap text-[var(--cf-text)]">{x.reward.kind === 'cash' ? `$${num(x.reward.value)}` : `${num(x.reward.value)} ${x.reward.name}`}{x.reward.capped && ' ⤓'}</span>
                         </li>
                       ))}</ul>
                     )}
@@ -293,9 +334,9 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                     <div>
                       <div className="cf-field-label mb-1">另有一次性獎勵（不計入每筆）</div>
                       <ul className="space-y-1">{testResult.oneTime.map((o, i) => (
-                        <li key={i} className="flex items-center justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
-                          <span className="truncate">{o.name}</span>
-                          <span className="flex-none text-[var(--cf-warn)]">{o.kind === 'cash' ? `$${num(o.value)}` : `${num(o.value)} ${o.pointName}`}</span>
+                        <li key={i} className="flex items-start justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
+                          <span className="min-w-0 flex-1 break-words leading-snug">{o.name}</span>
+                          <span className="flex-none whitespace-nowrap text-[var(--cf-warn)]">{o.kind === 'cash' ? `$${num(o.value)}` : `${num(o.value)} ${o.pointName}`}</span>
                         </li>
                       ))}</ul>
                     </div>
@@ -305,15 +346,18 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
 
               {tab === 'month' && monthResult && (
                 monthTxns.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-[var(--cf-border)] p-6 text-center text-xs text-[var(--cf-text-faint)]">用左側「＋ 加入此筆」建立本月的多筆消費,即可看到期間上限封頂、門檻解鎖、一次性獎勵的真實累計。</div>
+                  <div className="rounded-lg border border-dashed border-[var(--cf-border)] p-6 text-center text-xs text-[var(--cf-text-faint)]">用左側「＋ 加入此筆」逐筆建立消費(可填日期跨期),即可看到期間上限封頂、門檻解鎖、輪動/首刷依日期生效的真實累計。</div>
                 ) : (
                   <>
                     <div className="rounded-lg border border-[var(--cf-border)] bg-[var(--cf-surface)] p-4">
-                      <div className="text-[11px] text-[var(--cf-text-faint)]">本月累計回饋（{monthTxns.length} 筆）</div>
+                      <div className="flex items-baseline justify-between">
+                        <span className="text-[11px] text-[var(--cf-text-faint)]">期間累計回饋（{monthTxns.length} 筆 · 刷 ${num(monthSpend)}）</span>
+                        <span className="text-[11px] font-medium text-[var(--cf-text-dim)]">{pctText(valueOf(monthResult.totals, rates), monthSpend)}</span>
+                      </div>
                       <div className="mt-1 text-2xl font-semibold text-[var(--cf-text)]">${num(monthResult.totals.cashback)}</div>
                       {Object.entries(monthResult.totals.points).map(([n, v]) => <div key={n} className="text-xs text-[var(--cf-text-dim)]">+ {num(v)} {n}</div>)}
                       {Object.keys(monthResult.totals.points).length > 0 && (
-                        <div className="mt-1 text-[11px] text-[var(--cf-text-faint)]">≈ 估計總值 ${num(Math.round(valueOf({ cashback: monthResult.totals.cashback, points: monthResult.totals.points }, rates)))}{usesEstimate && ' · 含估算點值'}</div>
+                        <div className="mt-1 text-[11px] text-[var(--cf-text-faint)]">≈ 估計總值 ${num(Math.round(valueOf(monthResult.totals, rates)))}{usesEstimate && ' · 含估算點值'}</div>
                       )}
                     </div>
 
@@ -341,9 +385,9 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                       <div>
                         <div className="cf-field-label mb-1">一次性獎勵（整月一次）</div>
                         <ul className="space-y-1">{monthResult.oneTime.map((o, i) => (
-                          <li key={i} className="flex items-center justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
-                            <span className="truncate">「{o.name}」<span className="text-[var(--cf-text-faint)]">第 {o.claimedAtTxn + 1} 筆領取</span></span>
-                            <span className="flex-none text-[var(--cf-warn)]">{o.kind === 'cash' ? `$${num(o.value)}` : `${num(o.value)} ${o.pointName}`}</span>
+                          <li key={i} className="flex items-start justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
+                            <span className="min-w-0 flex-1 break-words leading-snug">「{o.name}」<span className="text-[var(--cf-text-faint)]">第 {o.claimedAtTxn + 1} 筆領取</span></span>
+                            <span className="flex-none whitespace-nowrap text-[var(--cf-warn)]">{o.kind === 'cash' ? `$${num(o.value)}` : `${num(o.value)} ${o.pointName}`}</span>
                           </li>
                         ))}</ul>
                       </div>
@@ -352,9 +396,9 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                     <div>
                       <div className="cf-field-label mb-1">逐筆明細</div>
                       <ul className="space-y-1">{monthResult.perTxn.map((t) => (
-                        <li key={t.index} className="flex items-center justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
-                          <span className="truncate">{t.index + 1}. ${num(t.tx.amount)} <span className="text-[var(--cf-text-faint)]">{txLabel(t.tx)}</span></span>
-                          <span className="flex-none text-[var(--cf-text)]">${num(t.cashback)}{Object.entries(t.points).map(([n, v]) => ` +${num(v)}${n}`).join('')}{t.fired.some((x) => x.capped) && ' ⤓'}</span>
+                        <li key={t.index} className="flex items-start justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
+                          <span className="min-w-0 flex-1 break-words leading-snug">{t.index + 1}. ${num(t.tx.amount)} <span className="text-[var(--cf-text-faint)]">{txLabel(t.tx)}</span></span>
+                          <span className="flex-none whitespace-nowrap text-[var(--cf-text)]">${num(t.cashback)}{Object.entries(t.points).map(([n, v]) => ` +${num(v)}${n}`).join('')}{t.fired.some((x) => x.capped) && ' ⤓'}</span>
                         </li>
                       ))}</ul>
                     </div>
@@ -365,18 +409,23 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
               {tab === 'recommend' && rec?.best && (
                 <>
                   <div className="rounded-lg border border-[var(--cf-border)] bg-[var(--cf-surface)] p-4">
-                    <div className="text-[11px] text-[var(--cf-text-faint)]">最佳回饋</div>
-                    <div className="mt-1 text-2xl font-semibold text-[var(--cf-text)]">${num(rec.best.result.cashback)}</div>
+                    <div className="flex items-baseline justify-between">
+                      <span className="text-[11px] text-[var(--cf-text-faint)]">最佳回饋</span>
+                      <span className="text-[11px] font-medium text-[var(--cf-text-dim)]">{pctText(valueOf(rec.best.result, rates), Number(f.amount) || 0)}</span>
+                    </div>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="text-2xl font-semibold text-[var(--cf-text)]">${num(rec.best.result.cashback)}</span>
+                      {rec.gainOverBase > 0 && <span className="rounded-full bg-[color-mix(in_srgb,var(--cf-warn)_16%,transparent)] px-2 py-0.5 text-[10px] font-medium text-[var(--cf-warn)]">比一般多 ${num(Math.round(rec.gainOverBase))}</span>}
+                    </div>
                     {Object.keys(rec.best.result.points).length > 0 && <div className="text-xs text-[var(--cf-text-dim)]">{pointsText(rec.best.result.points)}</div>}
-                    <div className="mt-1.5 text-xs text-[var(--cf-text-dim)]">建議：{rec.best.how.length ? rec.best.how.join(' + ') : '一般消費即可'}{rec.best.note && <span className="text-[var(--cf-warn)]">（{rec.best.note}）</span>}</div>
-                    {rec.gainOverBase > 0 && <div className="mt-1 text-[11px] text-[var(--cf-text-faint)]">比一般消費多 ${num(rec.gainOverBase)}</div>}
+                    <div className="mt-1.5 text-xs text-[var(--cf-text-dim)]">建議:{rec.best.how.length ? rec.best.how.join(' + ') : '一般消費即可'}{rec.best.note && <span className="text-[var(--cf-warn)]">({rec.best.note})</span>}</div>
                   </div>
                   <div>
                     <div className="cf-field-label mb-1">其他組合</div>
                     <ul className="space-y-1">{rec.options.map((o, i) => (
-                      <li key={i} className="flex items-center justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
-                        <span className="truncate">{o.how.length ? o.how.join(' + ') : '一般消費'}</span>
-                        <span className="flex-none text-[var(--cf-text)]">${num(o.result.cashback)}</span>
+                      <li key={i} className="flex items-start justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
+                        <span className="min-w-0 flex-1 break-words leading-snug">{o.how.length ? o.how.join(' + ') : '一般消費'}</span>
+                        <span className="flex-none whitespace-nowrap text-[var(--cf-text)]">${num(o.result.cashback)}</span>
                       </li>
                     ))}</ul>
                   </div>
@@ -385,16 +434,30 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
 
               {tab === 'compare' && (
                 <>
-                  <div className="cf-field-label mb-1">卡片排行（同一筆消費的最佳回饋）</div>
+                  <div className="cf-field-label mb-1">卡片排行<span className="text-[var(--cf-text-faint)]">（同一筆消費的最佳淨回饋）</span></div>
                   {cards.length < 2 && <p className="mb-1 text-[11px] text-[var(--cf-text-faint)]">畫布上有兩張以上卡片即可比較。</p>}
                   {usesEstimate && <p className="mb-1 text-[11px] text-[var(--cf-warn)]">排名含估算點值,僅供參考。</p>}
-                  <ul className="space-y-1">
-                    {compareRows.map((r, i) => (
-                      <li key={r.name + i} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs" style={{ borderColor: i === 0 ? 'var(--cf-accent)' : 'var(--cf-border)' }}>
-                        <span className="truncate text-[var(--cf-text-dim)]">{i === 0 ? '★ ' : ''}{r.name}<span className="text-[var(--cf-text-faint)]">{r.best?.how?.length ? ` · ${r.best.how.join('+')}` : ''}</span></span>
-                        <span className="flex-none font-medium text-[var(--cf-text)]">${num(Math.round(r.net))}</span>
-                      </li>
-                    ))}
+                  <ul className="space-y-1.5">
+                    {compareRows.map((r, i) => {
+                      const top = compareRows[0]?.net || 0;
+                      const w = Math.max(2, Math.min(100, top > 0 ? (r.net / top) * 100 : 0));
+                      const diff = top - r.net;
+                      return (
+                        <li key={r.name + i} className="relative overflow-hidden rounded-lg border px-3 py-2" style={{ borderColor: i === 0 ? 'var(--cf-accent)' : 'var(--cf-border)' }}>
+                          <div className="absolute inset-y-0 left-0" style={{ width: `${w}%`, background: i === 0 ? 'color-mix(in srgb, #6f8a68 16%, transparent)' : 'color-mix(in srgb, var(--cf-text-faint) 9%, transparent)' }} />
+                          <div className="relative flex items-start justify-between gap-2 text-xs">
+                            <span className="min-w-0 flex-1 break-words leading-snug">
+                              <span className="font-medium text-[var(--cf-text)]">{i === 0 ? '★ ' : `${i + 1}. `}{r.name}</span>
+                              {r.best?.how?.length ? <span className="text-[var(--cf-text-faint)]"> · {r.best.how.join('+')}</span> : ''}
+                            </span>
+                            <span className="flex-none whitespace-nowrap text-right">
+                              <span className="font-semibold text-[var(--cf-text)]">${num(Math.round(r.net))}</span>
+                              {i > 0 && diff > 0 && <span className="ml-1 text-[10px] text-[var(--cf-text-faint)]">−${num(Math.round(diff))}</span>}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </>
               )}

@@ -1,3 +1,5 @@
+import { parseNumInput } from '../../lib/options';
+
 // Repeatable tier rows shared by two modes:
 //  spend    — cumulative spend ≥ N → single rate (取最高符合;永豐式 滿1萬→10%)
 //  marginal — 超過 N 的金額才套該段費率 (超額累進;各段分別計)
@@ -21,7 +23,7 @@ export default function TierEditor({ tiers = [], onChange, mode = 'spend' }) {
               className="cf-input !mt-0"
               placeholder="金額"
               value={t.minSpend ?? ''}
-              onChange={(e) => update(i, { minSpend: e.target.value === '' ? null : Number(e.target.value) })}
+              onChange={(e) => update(i, { minSpend: parseNumInput(e.target.value) })}
             />
             <span className="text-[11px] text-[var(--cf-text-faint)]">→</span>
             <input
@@ -30,12 +32,12 @@ export default function TierEditor({ tiers = [], onChange, mode = 'spend' }) {
               className="cf-input !mt-0 !w-20"
               placeholder="%"
               value={t.rate ?? ''}
-              onChange={(e) => update(i, { rate: e.target.value === '' ? null : Number(e.target.value) })}
+              onChange={(e) => update(i, { rate: parseNumInput(e.target.value) })}
             />
             <button
               type="button"
               onClick={() => remove(i)}
-              className="px-1 text-[var(--cf-text-faint)] hover:text-red-400"
+              className="px-1 text-[var(--cf-text-faint)] hover:text-[var(--cf-danger)]"
               title="移除"
             >×</button>
           </div>
