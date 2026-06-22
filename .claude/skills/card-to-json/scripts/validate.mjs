@@ -88,7 +88,12 @@ const byType = nodes.reduce((m, n) => ((m[n.type] = (m[n.type] || 0) + 1), m), {
 info.push(`import OK — 節點 ${nodes.length}(${Object.entries(byType).map(([t, n]) => `${t}:${n}`).join(', ')})、連線 ${edges.length}`);
 
 // ---- 2. completeness ----
-for (const n of nodes) for (const msg of nodeIssues(n, edges)) fail.push(`節點未完成 [${n.type}] ${msg}`);
+// severity 'pending' = 留給使用者選的選項(資格符合與否 / 擇一選法):引擎照常可
+// 載入/模擬/round-trip,僅記為待選、不讓驗證失敗;'error' 才是結構未完成。
+for (const n of nodes) for (const it of nodeIssues(n, edges, nodes)) {
+  if (it.severity === 'pending') info.push(`待使用者選擇 [${n.type}] ${it.message}`);
+  else fail.push(`節點未完成 [${n.type}] ${it.message}`);
+}
 
 // ---- 3. export (round-trip) ----
 let out;
@@ -107,10 +112,10 @@ cmp('上限·回饋', fin.caps.reward, fout.caps.reward);
 cmp('上限·消費', fin.caps.spend, fout.caps.spend);
 cmp('上限·筆數', fin.caps.count, fout.caps.count);
 cmp('取高群組', fin.tops, fout.tops);
-cmp('擇優群組', fin.selects, fout.selects);
+cmp('擇一群組', fin.selects, fout.selects);
 cmp('門檻(gate)', fin.gates, fout.gates);
 cmp('點數計畫', fin.points, fout.points);
-info.push(`features — 規則${fin.rules} marginal${fin.marginal} spend${fin.spend} caps(回${fin.caps.reward}/消${fin.caps.spend}/筆${fin.caps.count}) 取高${fin.tops} 擇優${fin.selects} 門檻${fin.gates} 點數${fin.points}`);
+info.push(`features — 規則${fin.rules} marginal${fin.marginal} spend${fin.spend} caps(回${fin.caps.reward}/消${fin.caps.spend}/筆${fin.caps.count}) 取高${fin.tops} 擇一${fin.selects} 門檻${fin.gates} 點數${fin.points}`);
 
 // ---- 5. simulate smoke ----
 const sampleTxns = [

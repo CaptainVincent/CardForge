@@ -16,6 +16,7 @@ const ACCT = {
   tiered: 'Liabilities:CreditCard:Tide',
   cap: 'Liabilities:CreditCard:Granite',
   merchant: 'Liabilities:CreditCard:Skyline',
+  rotate: 'Liabilities:CreditCard:Liberty',
 };
 
 // 1) 通路加碼 + 期間上限（封頂）
@@ -134,6 +135,25 @@ const merchantCard = {
   },
 };
 
+// 多期示範(美系輪動風):輪動季度 + 新戶首刷窗 + MCC + 帳單結帳日。
+// 配「分析 → 月度」逐筆填日期(跨季)才看得出輪動生效與每季上限重置。
+const rotateCard = {
+  card: '自由旋轉卡（示範·多期）',
+  account: ACCT.rotate,
+  rounding: 'floor',
+  fx_fee_rate: 1.5,
+  statement_day: 5,
+  opened: '2026-01-01',
+  eligibility_flags: { 已登錄: { default: false } },
+  rules: {
+    base: { id: 'rbase', name: '一般 1%', account: ACCT.rotate, match: {}, reward: { type: 'cashback', method: 'percentage', rate: 0.01 }, limits: {} },
+    q1: { id: 'rq1', name: 'Q1 輪動 超市 5%（季上限 $1,500 · 需登錄）', account: ACCT.rotate, match: { categories: ['supermarket'] }, eligibility: { flags: ['已登錄'] }, period: { cycle: 'quarterly', start: '2026-01-01', end: '2026-03-31' }, reward: { type: 'cashback', method: 'percentage', rate: 0.05 }, limits: { caps: [{ metric: 'spend', window: 'period', max: 1500 }] }, stacking: { layer: 'bonus' } },
+    q2: { id: 'rq2', name: 'Q2 輪動 加油 5%（季上限 $1,500 · 需登錄）', account: ACCT.rotate, match: { categories: ['gas'] }, eligibility: { flags: ['已登錄'] }, period: { cycle: 'quarterly', start: '2026-04-01', end: '2026-06-30' }, reward: { type: 'cashback', method: 'percentage', rate: 0.05 }, limits: { caps: [{ metric: 'spend', window: 'period', max: 1500 }] }, stacking: { layer: 'bonus' } },
+    mcc: { id: 'rmcc', name: '餐飲(MCC 5811–5814) +3%', account: ACCT.rotate, match: { mcc: ['5811-5814'] }, reward: { type: 'cashback', method: 'percentage', rate: 0.03 }, limits: {}, stacking: { layer: 'bonus' } },
+    sub: { id: 'rsub', name: '新戶首刷禮:開卡 90 天內刷 $30,000 送 $3,000', account: ACCT.rotate, match: {}, period: { from_opening_days: 90 }, eligibility: { min_spending: { amount: 30000, period: 'total' } }, reward: { type: 'cashback', method: 'fixed', fixed_amount: 3000 }, settlement: 'once', limits: {} },
+  },
+};
+
 // The combined database loaded on first visit / via 「綜合範例」.
 export const DEMO_DB = { cards: [mobileCard, travelCard, pointsCard, advancedCard, gateCard] };
 
@@ -141,9 +161,10 @@ export const DEMO_DB = { cards: [mobileCard, travelCard, pointsCard, advancedCar
 // 綜合 already contains 通路/上限·類別/海外·點數/首刷·任一/擇優·門檻 — so those need
 // no standalone spotlight. The rest spotlight one distinctive mechanic each.
 export const SAMPLES = [
-  { name: '綜合範例（5 張卡）', hint: '全功能', desc: '通路加碼/月上限、類別+海外+外幣費、點數+首刷禮、任一+擇優、門檻解鎖 — 一次看常用功能。', db: DEMO_DB },
+  { name: '綜合範例（5 張卡）', hint: '全功能', desc: '通路加碼/月上限、類別+海外+外幣費、點數+首刷禮、任一+擇一、門檻解鎖 — 一次看常用功能。', db: DEMO_DB },
   { name: '取高：自動最高消費類別', hint: 'top', desc: '餐飲/旅遊/超市,系統依當期累積消費自動只給「最高那一類」5% 加碼(CUBE 自選 / Custom Cash 風格);配「分析 → 月度」最有感。', db: { cards: [topCard] } },
   { name: '超額累進 + 前 $X 消費', hint: 'tiers', desc: '百貨「超過 1 萬的部分才 5%」(超額累進),影音「每月前 $1,500 消費享 5%」(消費金額上限)。', db: { cards: [tieredCard] } },
   { name: '多重上限 + 筆數上限', hint: 'caps', desc: '行動支付同時受「單筆 $50」與「每月 $300」兩道上限;超商「每月前 3 筆」享 10%(筆數上限)。', db: { cards: [capCard] } },
   { name: '指定特店', hint: 'merchant', desc: '把範圍從「類別」縮到特定商家:超商限 7-11/全家、網購限蝦皮/momo;示範特店與類別/通路併用。', db: { cards: [merchantCard] } },
+  { name: '多期:輪動季度 + 新戶首刷窗 + MCC', hint: 'multi-period', desc: '美系輪動卡:Q1超市/Q2加油 5%(各季 $1,500 上限、需登錄)、餐飲依 MCC 加碼、新戶「開卡 90 天內刷 $30,000 送 $3,000」、帳單結帳日 5。配「分析 → 月度」逐筆填日期跨季最有感。', db: { cards: [rotateCard] } },
 ];
