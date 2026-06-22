@@ -213,7 +213,11 @@ export function exportCard(cardNode, nodes, edges) {
     const flagNames = [...new Set(eligNodes.map((e) => (e.data?.name || '').trim()).filter(Boolean))];
     for (const e of eligNodes) {
       const name = (e.data?.name || '').trim();
-      if (name) eligibilityFlags[name] = e.data?.default == null ? {} : { default: e.data.default === true };
+      if (!name) continue;
+      const entry = {};
+      if (e.data?.default != null) entry.default = e.data.default === true; // 省略 = 未選
+      if (e.data?.cycle && e.data.cycle !== 'once') entry.cycle = e.data.cycle; // 省略 = 一次性
+      eligibilityFlags[name] = entry;
     }
 
     // Unlock gate(s) for this reward; shared gate (→ >1 reward) becomes a pool.

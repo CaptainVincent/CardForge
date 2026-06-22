@@ -353,7 +353,7 @@
         }
       },
       "eligibility_flags": {
-        "運動達標": {},
+        "運動達標": { "cycle": "monthly" },
         "新戶": {}
       }
     }

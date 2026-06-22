@@ -1,7 +1,7 @@
 // One-line summaries for nodes. Shared by the canvas cards and Inspector header.
 // Title / accent now come from the node registry (single source of truth).
 
-import { CHANNEL_OPTIONS, CATEGORY_OPTIONS, PM_OPTIONS, CYCLES, LAYERS, WEEKDAY_OPTIONS, PREDICATE_OP_SYMBOL, labelOf } from './options';
+import { CHANNEL_OPTIONS, CATEGORY_OPTIONS, PM_OPTIONS, CYCLES, LAYERS, WEEKDAY_OPTIONS, ELIG_CYCLES, PREDICATE_OP_SYMBOL, labelOf } from './options';
 
 const dayParts = (d) => {
   const p = [];
@@ -118,7 +118,8 @@ export function gateSummary(d = {}) {
 export function eligibilitySummary(d = {}) {
   if (!d.name?.trim()) return '尚未命名資格';
   const state = d.default === true ? '符合' : d.default === false ? '未符合' : '未選';
-  return `${d.name.trim()}（預設${state}）`;
+  const cyc = d.cycle && d.cycle !== 'once' ? ` · ${labelOf(ELIG_CYCLES, d.cycle)}重設` : '';
+  return `${d.name.trim()}（預設${state}${cyc}）`;
 }
 
 export function nodeSummary(node) {

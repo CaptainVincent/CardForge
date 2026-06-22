@@ -210,7 +210,7 @@ function importOneCard(json, nodes, edges, yBase) {
             id: fid,
             type: 'eligibility',
             position: { x: 360 + dx, y: yBase + 40 - 110 - Object.keys(flagNodes).length * 80 },
-            data: { name, default: dflt === true ? true : dflt === false ? false : undefined },
+            data: { name, default: dflt === true ? true : dflt === false ? false : undefined, cycle: flagRegistry[name]?.cycle || 'once' },
           });
           flagNodes[name] = fid;
           edges.push(edge(cardId, fid));

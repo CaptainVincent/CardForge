@@ -1,7 +1,9 @@
 import { useFlowStore } from '../store/flowStore';
 import SegmentedControl from './fields/SegmentedControl';
+import SelectField from './fields/SelectField';
 import InfoHint from './fields/InfoHint';
 import { rewardSummary } from '../lib/summary';
+import { ELIG_CYCLES } from '../lib/options';
 import { forwardReachable } from '../lib/graph.js';
 
 const DEFAULTS = [
@@ -64,6 +66,8 @@ export default function EligibilityFields({ data, nodeId, update }) {
       {data.default == null && (
         <p className="-mt-1 text-[10px]" style={{ color: 'var(--cf-warn)' }}>尚未選擇預設狀態</p>
       )}
+
+      <SelectField label="重設週期（一次性=新戶/身分;每月/季/年=登錄或任務需重新達成）" value={data.cycle || 'once'} options={ELIG_CYCLES} onChange={(v) => update({ cycle: v })} />
 
       {controlled.length > 0 ? (
         <div>

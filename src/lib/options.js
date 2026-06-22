@@ -87,6 +87,15 @@ export const LIMIT_METRICS = [
   { value: 'count', label: '筆數' },
 ];
 
+// 資格「重設週期」:多久要重新達成一次(新戶=一次性;每月登錄/每季任務…)。
+// 屬規則靜態事實;這期到底達成沒,屬記帳/分析的動態真實。
+export const ELIG_CYCLES = [
+  { value: 'once', label: '一次性' },
+  { value: 'monthly', label: '每月' },
+  { value: 'quarterly', label: '每季' },
+  { value: 'yearly', label: '每年' },
+];
+
 // 星期(卡友日/週幾限定);value 與引擎 weekday 推算一致(date → 週幾)。
 export const WEEKDAY_OPTIONS = [
   { value: 'mon', label: '週一' },
