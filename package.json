@@ -9,7 +9,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "cards:check": "node scripts/audit-cards.mjs"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",

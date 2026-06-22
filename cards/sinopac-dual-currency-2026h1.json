@@ -47,13 +47,7 @@
             "end": "2026-06-30"
           },
           "match": {
-            "custom": [
-              {
-                "field": "mcc",
-                "op": "is",
-                "value": "6300"
-              }
-            ]
+            "mcc": ["6300"]
           },
           "eligibility": {},
           "reward": {

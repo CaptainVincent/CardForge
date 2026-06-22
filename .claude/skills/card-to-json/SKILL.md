@@ -253,7 +253,11 @@ node <skill 目錄>/scripts/validate.mjs cards/<bank>-<card>-<period>.json
 收尾時**回頭掃既有 `cards/*.json`**:之前因為「沒這個方塊」而被壓成近似(塞旗標/塞 note/省略)的
 規則,現在能不能改成正解?做法:
 
-1. 列出**受影響的卡**(grep `cards/` 找曾用近似手法的:`note` 內提到該機制、或本該結構化卻記文字)。
+0. **先跑 `pnpm cards:check`**(`scripts/audit-cards.mjs`)——自動稽核全卡:**格式相容**
+   (import→export 冪等 + simulate 不爆) + **升級訊號**(note/名稱提到某機制卻沒用對應一級構造、
+   或還在用 `custom` 逃生口)。CI 也會跑(格式不相容會擋 PR)。新增構造後**先把它的訊號規則加進
+   `SIGNALS` 表**,稽核才偵測得到。
+1. 依稽核的「升級訊號」列出**受影響的卡**(或 grep `cards/` 找 `note`/`custom` 提到該機制者)。
 2. 對每張跑步驟 3 的「機制覆蓋掃描」(必要時重抓官網確認來源完整性)。
 3. 把能升級的改成新原語、跑 `validate.mjs` 確認 round-trip。
 4. **這是「加方塊沒回填舊卡」這個債的還款動作**(實戰:計數級距/卡友日/筆數門檻補上後,
