@@ -6,6 +6,7 @@ import { recommend, compareCards, usedPointNames } from '../src/lib/recommend.js
 import { nodeIssues } from '../src/lib/validate.js';
 import { lintGraph } from '../src/lib/lint.js';
 import { inactiveNodeIds } from '../src/lib/decorate.js';
+import { cardRows } from '../src/lib/ruleList.js';
 
 // Helpers — build a simulate-ready json (rules keyed map, no rounding noise).
 const cash = (rate, over = {}) => ({ type: 'cashback', method: 'percentage', rate, ...over });
@@ -645,5 +646,25 @@ describe('擇一·自選 over 一次性首刷禮(互斥身分:新戶/既有戶)'
   it('皆未選(both is_active:false)→ 不認列任何一張(預設不灌水)', () => {
     const j = db({ a: sub('a', 500, false), b: sub('b', 100, false) }, { select_groups: { sub: { mode: 'pick' } } });
     expect(simulateMonth(j, [{ amount: 1000 }]).oneTime).toEqual([]);
+  });
+});
+
+describe('cardRows(規則 → 條列對照表)', () => {
+  const card = { card: 'X', rules: {
+    base: { id: 'base', match: { is_overseas: false }, reward: { type: 'cashback', method: 'percentage', rate: 0.005 }, stacking: { layer: 'base' } },
+    jp:   { id: 'jp', match: { countries: ['日本'], is_overseas: true }, reward: { type: 'cashback', method: 'percentage', rate: 0.06 }, limits: { caps: [{ metric: 'reward', window: 'period', cycle: 'monthly', max: 500 }] }, eligibility: { flags: ['活動登錄'] }, stacking: { layer: 'bonus' } },
+    once: { id: 'once', match: { countries: ['韓國'] }, reward: { method: 'fixed', fixed_amount: 1500 }, settlement: 'once', stacking: { layer: 'bonus' } },
+  } };
+  it('格式化欄位 + 基本→加碼→一次性排序', () => {
+    const rows = cardRows(card);
+    expect(rows.map((r) => r.id)).toEqual(['base', 'jp', 'once']);
+    const jp = rows.find((r) => r.id === 'jp');
+    expect(jp.condition).toContain('日本');
+    expect(jp.reward).toBe('+6%');         // 小數 0.06 → +6%(bonus 加 +)
+    expect(jp.cap).toBe('每月 $500');
+    expect(jp.eligibility).toBe('活動登錄');
+    const once = rows.find((r) => r.id === 'once');
+    expect(once.cap).toBe('一次性');
+    expect(rows.find((r) => r.id === 'base').reward).toBe('0.5%'); // base 不加 +
   });
 });

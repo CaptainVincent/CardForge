@@ -10,6 +10,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Toaster, toast } from 'sonner';
+import { Network, List } from 'lucide-react';
 
 import { nodeTypes } from './nodes';
 import { nodeAccent, NODE_MENU } from './nodes/registry';
@@ -29,13 +30,14 @@ function nodeIdAtPoint(x, y) {
 }
 
 import LintPanel from './components/LintPanel';
+import RuleListView from './components/RuleListView';
 import ConfirmDialog from './components/ConfirmDialog';
 // Modals are opened on demand → lazy-load so their code (incl. the simulate /
 // recommend engine pulled in by AnalyzePanel) stays off the first paint.
 const PreviewModal = lazy(() => import('./components/PreviewModal'));
 const ImportModal = lazy(() => import('./components/ImportModal'));
 const AnalyzePanel = lazy(() => import('./components/AnalyzePanel'));
-const SampleGallery = lazy(() => import('./components/SampleGallery'));
+const BuiltinCards = lazy(() => import('./components/BuiltinCards'));
 import { useTheme } from './hooks/useTheme';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useFlowStore, useTemporalStore } from './store/flowStore';
@@ -71,11 +73,12 @@ function FlowEditor() {
   const { screenToFlowPosition, fitView, setCenter } = useReactFlow();
   const { theme, isDark, toggle: toggleTheme } = useTheme();
 
+  const [view, setView] = useState('graph'); // 'graph' 節點圖編輯 | 'list' 條列閱讀
   const [dropMenu, setDropMenu] = useState(null);
   const [previewJson, setPreviewJson] = useState(null);
   const [showTest, setShowTest] = useState(false);
   const [showLint, setShowLint] = useState(false);
-  const [showSamples, setShowSamples] = useState(false);
+  const [showBuiltin, setShowBuiltin] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState(null);
   const [flaggedIds, setFlaggedIds] = useState(() => new Set());
@@ -289,22 +292,18 @@ function FlowEditor() {
     }
   }, [applyDb]);
 
-  const loadSample = useCallback((sample) => {
-    applyDb(sample.db, { successMsg: `已載入範例：${sample.name}` });
-    setShowSamples(false);
-  }, [applyDb]);
-
-  const handleLoadSample = useCallback((sample) => {
+  // 內建卡片:加入 = 直接疊到畫布;取代 = 有內容先詢問(同範例載入的防呆)。
+  const handleImportBuiltin = useCallback((db, { append = false } = {}) => {
+    const doIt = () => {
+      applyDb(db, { append, successMsg: `已${append ? '加入' : '匯入'} ${db.cards?.length ?? 1} 張內建卡` });
+      setShowBuiltin(false);
+    };
+    if (append) return doIt();
     const { nodes: n, edges: e } = useFlowStore.getState();
     const hasWork = e.length > 0 || n.length > 1 || n[0]?.data?.cardName;
-    if (!hasWork) return loadSample(sample);
-    setConfirmDialog({
-      title: '載入範例',
-      body: `載入「${sample.name}」會取代目前畫布內容。`,
-      confirmLabel: '載入',
-      onConfirm: () => loadSample(sample),
-    });
-  }, [loadSample]);
+    if (!hasWork) return doIt();
+    setConfirmDialog({ title: '匯入內建卡片', body: '「取代」會清空目前畫布內容（可用 ⌘Z 復原）。', confirmLabel: '取代', danger: true, onConfirm: doIt });
+  }, [applyDb]);
 
   const handleReset = useCallback(() => {
     setConfirmDialog({
@@ -354,7 +353,7 @@ function FlowEditor() {
         onReset={handleReset}
         onDuplicate={duplicateSelected}
         onOpenImport={() => setShowImport(true)}
-        onOpenSamples={() => setShowSamples(true)}
+        onOpenBuiltin={() => setShowBuiltin(true)}
         onAnalyze={() => setShowTest(true)}
         onPreview={handlePreview}
         onExport={handleExport}
@@ -362,6 +361,15 @@ function FlowEditor() {
 
       <div className="flex flex-1 overflow-hidden">
         <div className="relative flex-1">
+          {/* 畫布層級檢視切換:節點圖(編輯)↔ 清單(一般使用者條列閱讀) */}
+          <div className="absolute left-3 top-3 z-10 cf-seg !mt-0 !w-auto flex-none !bg-[var(--cf-panel)] shadow-sm">
+            <button type="button" title="節點圖（編輯）" aria-label="節點圖" className={`flex items-center justify-center ${view === 'graph' ? 'is-active' : ''}`} onClick={() => setView('graph')}><Network size={15} strokeWidth={1.75} /></button>
+            <button type="button" title="清單（閱讀）" aria-label="清單" className={`flex items-center justify-center ${view === 'list' ? 'is-active' : ''}`} onClick={() => setView('list')}><List size={15} strokeWidth={1.75} /></button>
+          </div>
+          {view === 'list' ? (
+            <RuleListView nodes={nodes} edges={edges} />
+          ) : (
+          <>
          <NodeBadgeContext.Provider value={nodeBadges}>
           <ReactFlow
             nodes={displayNodes}
@@ -403,6 +411,8 @@ function FlowEditor() {
          </NodeBadgeContext.Provider>
 
           <DropMenu menu={dropMenu} onPick={pickFromDropMenu} onClose={() => setDropMenu(null)} />
+          </>
+          )}
         </div>
 
         <Inspector />
@@ -419,8 +429,8 @@ function FlowEditor() {
         {showImport && (
           <ImportModal onClose={() => setShowImport(false)} onSubmitTexts={handleImportTexts} />
         )}
-        {showSamples && (
-          <SampleGallery onLoad={handleLoadSample} onClose={() => setShowSamples(false)} />
+        {showBuiltin && (
+          <BuiltinCards onImport={handleImportBuiltin} onClose={() => setShowBuiltin(false)} />
         )}
       </Suspense>
       {showLint && (

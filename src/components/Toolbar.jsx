@@ -1,4 +1,4 @@
-import { Wrench, Sun, Moon, Plus, Calculator, LayoutGrid, NodeGlyph } from '../lib/icons';
+import { Wrench, Sun, Moon, Plus, Calculator, NodeGlyph } from '../lib/icons';
 import { NODE_MENU, nodeAccent } from '../nodes/registry';
 import OverflowMenu from './OverflowMenu';
 
@@ -18,7 +18,7 @@ export default function Toolbar({
   onReset,
   onDuplicate,
   onOpenImport,
-  onOpenSamples,
+  onOpenBuiltin,
   onAnalyze,
   onPreview,
   onExport,
@@ -38,9 +38,12 @@ export default function Toolbar({
     { label: '清空畫布', danger: true, onClick: onReset },
   ];
   const dataItems = [
+    { header: 'JSON' },
     { label: '匯入 JSON', hint: '檔案/貼上/網址', onClick: onOpenImport },
     { label: 'JSON 預覽', onClick: onPreview },
     { label: '匯出 JSON', onClick: onExport },
+    { header: '卡片' },
+    { label: '內建卡片', onClick: onOpenBuiltin },
   ];
 
   return (
@@ -67,8 +70,7 @@ export default function Toolbar({
 
       <OverflowMenu trigger={<><Plus size={14} strokeWidth={2} />新增</>} title="新增節點" items={addItems} />
       <OverflowMenu trigger="編輯" title="編輯" items={editItems} />
-      <OverflowMenu trigger="資料" title="匯入 / 預覽 / 匯出" items={dataItems} />
-      <button onClick={onOpenSamples} className="cf-btn cf-btn--quiet"><LayoutGrid size={14} strokeWidth={1.75} />範例</button>
+      <OverflowMenu trigger="資料" title="JSON 匯入 / 匯出 · 內建卡片" items={dataItems} />
       <button onClick={onAnalyze} className="cf-btn cf-btn--quiet"><Calculator size={14} strokeWidth={1.75} />分析</button>
 
       <div className="cf-divider" />

@@ -4,7 +4,7 @@ import { applyNodeChanges, applyEdgeChanges, addEdge } from '@xyflow/react';
 import { importFromJson } from '../lib/importJson';
 import { layoutGraph } from '../lib/autoLayout';
 import { isExpected } from '../lib/connectionRules';
-import { DEMO_DB } from '../lib/samples';
+import { BUILTIN_CARDS } from '../lib/builtinCards';
 
 const STORAGE_KEY = 'cardforge:graph:v1';
 
@@ -91,16 +91,20 @@ function loadPersisted() {
 
 const persisted = loadPersisted();
 
-// First visit (no saved canvas) → seed the demo so the page isn't empty.
-// Clearing the canvas (reset) persists a blank card, so the demo won't return.
-function seedDemo() {
+// First visit (no saved canvas) → seed the SIMPLEST built-in card (fewest rules)
+// so the page lands on a real but un-overwhelming card. Clearing the canvas
+// (reset) persists a blank card, so the seed won't return.
+function seedFirstCard() {
   try {
-    const g = importFromJson(DEMO_DB);
-    if (g.nodes.length) return { nodes: layoutGraph(g.nodes, g.edges), edges: g.edges };
+    const db = [...BUILTIN_CARDS].sort((a, b) => a.ruleCount - b.ruleCount)[0]?.db;
+    if (db) {
+      const g = importFromJson(db);
+      if (g.nodes.length) return { nodes: layoutGraph(g.nodes, g.edges), edges: g.edges };
+    }
   } catch { /* fall through */ }
   return { nodes: INITIAL_NODES, edges: [] };
 }
-const seed = persisted ?? seedDemo();
+const seed = persisted ?? seedFirstCard();
 
 export const useFlowStore = create(
   temporal(
