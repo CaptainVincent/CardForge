@@ -132,8 +132,13 @@
                     "Booking.com",
                     "Agoda",
                     "Klook",
-                    "KKday"
+                    "KKday",
+                    "iHerb",
+                    "日本交通卡儲值"
                   ]
+                },
+                {
+                  "is_overseas": true
                 }
               ]
             ]
@@ -192,8 +197,13 @@
                     "Booking.com",
                     "Agoda",
                     "Klook",
-                    "KKday"
+                    "KKday",
+                    "iHerb",
+                    "日本交通卡儲值"
                   ]
+                },
+                {
+                  "is_overseas": true
                 }
               ]
             ]
