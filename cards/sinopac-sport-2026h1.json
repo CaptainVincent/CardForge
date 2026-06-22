@@ -47,7 +47,7 @@
           "match": {},
           "eligibility": {
             "flags": [
-              "已登錄"
+              "運動達標"
             ]
           },
           "reward": {
@@ -95,7 +95,7 @@
           },
           "eligibility": {
             "flags": [
-              "已登錄"
+              "運動達標"
             ]
           },
           "reward": {
@@ -164,7 +164,7 @@
           },
           "eligibility": {
             "flags": [
-              "已登錄"
+              "運動達標"
             ]
           },
           "reward": {
@@ -213,7 +213,7 @@
           },
           "eligibility": {
             "flags": [
-              "已登錄"
+              "運動達標"
             ]
           },
           "reward": {
@@ -263,7 +263,7 @@
           },
           "eligibility": {
             "flags": [
-              "已登錄"
+              "運動達標"
             ]
           },
           "reward": {
@@ -353,7 +353,7 @@
         }
       },
       "eligibility_flags": {
-        "已登錄": {},
+        "運動達標": {},
         "新戶": {}
       }
     }

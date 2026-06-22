@@ -196,11 +196,11 @@ function importOneCard(json, nodes, edges, yBase) {
 
       // Eligibility flags (資格:新戶/登錄…) — one shared node per flag NAME,
       // rooted at the card, fanning out to every reward that requires it.
-      // Legacy requires_activation migrates to a 已登錄 flag. `default` is
+      // Legacy requires_activation migrates to a 活動登錄 flag. `default` is
       // tri-state: true / false explicitly written, or undefined when the card
       // leaves it for the user to pick (節點顯示未選 + 黃點).
       const flagList = [...(rule.eligibility?.flags || [])];
-      if (rule.requires_activation && !flagList.includes('已登錄')) flagList.push('已登錄');
+      if (rule.requires_activation && !flagList.includes('活動登錄')) flagList.push('活動登錄');
       for (const name of flagList) {
         let fid = flagNodes[name];
         if (!fid) {

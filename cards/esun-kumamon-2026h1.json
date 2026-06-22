@@ -14,12 +14,12 @@
           "is_active": true,
           "period": { "cycle": "monthly", "start": "2026-01-01", "end": "2026-06-30" },
           "match": { "is_overseas": false },
-          "eligibility": { "flags": ["已設定自動扣繳"] },
+          "eligibility": { "flags": ["自動扣繳設定"] },
           "reward": { "type": "cashback", "method": "percentage", "rate": 0.005 },
           "tiers": { "mode": "flat" },
           "limits": {},
           "stacking": { "layer": "base", "group": "esun-kumamon" },
-          "note": "國內一般消費 0.5%、無上限,但須『綁定帳單 e 化 + 玉山帳戶自動扣繳卡費』才享(設定條件 → 資格『已設定自動扣繳』,預設未選)。",
+          "note": "國內一般消費 0.5%、無上限,但須『綁定帳單 e 化 + 玉山帳戶自動扣繳卡費』才享(設定條件 → 資格『自動扣繳設定』,預設未選)。",
           "reward_posting": { "account": "Income:CreditCard:Reward:ESun:Kumamon" }
         },
         "japan-base": {
@@ -48,12 +48,12 @@
           "is_active": true,
           "period": { "cycle": "monthly", "start": "2026-01-01", "end": "2026-06-30" },
           "match": { "is_overseas": true, "custom": [ { "field": "country", "op": "is", "value": "日本" } ], "merchants": ["交通卡儲值SUICA/PASMO/ICOCA", "BicCamera", "Yodobashi", "松本清", "唐吉訶德", "大國藥妝", "無印良品", "UNIQLO", "GU", "樂天旅遊", "日本航空", "迪士尼", "環球影城"] },
-          "eligibility": { "flags": ["已登錄"] },
+          "eligibility": { "flags": ["活動登錄"] },
           "reward": { "type": "cashback", "method": "percentage", "rate": 0.06 },
           "tiers": { "mode": "flat" },
           "limits": { "caps": [ { "metric": "reward", "window": "period", "max": 500 } ] },
           "stacking": { "layer": "bonus", "group": "esun-kumamon" },
-          "note": "指定日本商店加碼 +6%(與日本一般 2.5% 合計 8.5%)、每歸戶每期上限 500 元、需登錄(整檔登錄 1 次 → 資格『已登錄』)。清單含交通卡儲值/租車/鐵路/航空/飯店/家電/藥妝/服飾/餐飲/樂園,『等』未盡列;以代表性特店表示。",
+          "note": "指定日本商店加碼 +6%(與日本一般 2.5% 合計 8.5%)、每歸戶每期上限 500 元、需登錄(整檔登錄 1 次 → 資格『活動登錄』)。清單含交通卡儲值/租車/鐵路/航空/飯店/家電/藥妝/服飾/餐飲/樂園,『等』未盡列;以代表性特店表示。",
           "reward_posting": { "account": "Income:CreditCard:Reward:ESun:Kumamon" }
         },
         "japan-paypay": {
@@ -82,7 +82,7 @@
           "is_active": true,
           "period": { "cycle": "once", "start": "2026-04-01", "end": "2026-06-30" },
           "match": { "is_overseas": true, "custom": [ { "field": "country", "op": "is", "value": "韓國" } ] },
-          "eligibility": { "flags": ["已登錄"], "min_spending": { "amount": 15000, "currency": "TWD", "period": "total" } },
+          "eligibility": { "flags": ["活動登錄"], "min_spending": { "amount": 15000, "currency": "TWD", "period": "total" } },
           "reward": { "type": "cashback", "method": "fixed", "fixed_amount": 1500, "reward_currency": "TWD" },
           "tiers": { "mode": "flat" },
           "limits": {},
@@ -92,7 +92,7 @@
           "reward_posting": { "account": "Income:CreditCard:Reward:ESun:Kumamon" }
         }
       },
-      "eligibility_flags": { "已設定自動扣繳": {}, "已登錄": {} }
+      "eligibility_flags": { "自動扣繳設定": {}, "活動登錄": {} }
     }
   ]
 }

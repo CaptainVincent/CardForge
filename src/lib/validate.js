@@ -86,7 +86,7 @@ export function nodeIssues(node, edges, nodes = []) {
 
   if (node.type === 'eligibility') {
     if (!hasIncoming) E('未連接來源');
-    if (!d.name?.trim()) E('未命名資格（如:新戶、已登錄）');
+    if (!d.name?.trim()) E('未命名資格（如:新戶、活動登錄）');
     if (d.default == null) P('尚未選擇預設狀態(符合/未符合)');
     const hasDownstream = edges.some((e) => e.source === node.id);
     if (!hasDownstream) E('未連接要控制的回饋');

@@ -245,7 +245,7 @@ describe('eligibility flags (資格:新戶/登錄)', () => {
     expect(simulate(out, { amount: 1000, channels: ['mobile_pay'], flags: { 新戶: true } }).cashback).toBe(200);
   });
 
-  it('migrates legacy requires_activation → 已登錄 flag (default 未選 → 待使用者選)', () => {
+  it('migrates legacy requires_activation → 活動登錄 flag (default 未選 → 待使用者選)', () => {
     const src = { cards: [{
       card: 'A', account: 'Liabilities:CreditCard:A', rounding: 'none', fx_fee_rate: 1.5,
       rules: { r: { id: 'r', name: 'r', card: 'A', account: 'Liabilities:CreditCard:A', match: {}, reward: cash(0.03), tiers: { mode: 'flat' }, limits: {}, eligibility: {}, requires_activation: true, stacking: { layer: 'bonus', group: 'a' } } },
@@ -254,11 +254,11 @@ describe('eligibility flags (資格:新戶/登錄)', () => {
     expect(nodes.find((n) => n.type === 'eligibility')?.data.default).toBeUndefined(); // 未寫 default → 未選
     const out = exportToJson(nodes, edges).cards[0];
     const r0 = Object.values(out.rules)[0];
-    expect(r0.eligibility.flags).toContain('已登錄');
-    expect(out.eligibility_flags['已登錄'].default).toBeUndefined(); // 匯出省略(未選)
+    expect(r0.eligibility.flags).toContain('活動登錄');
+    expect(out.eligibility_flags['活動登錄'].default).toBeUndefined(); // 匯出省略(未選)
     expect('requires_activation' in r0).toBe(false); // field retired
     expect(simulate(out, { amount: 1000 }).cashback).toBe(0); // 未選 → 引擎當未符合 → skipped
-    expect(simulate(out, { amount: 1000, flags: { 已登錄: true } }).cashback).toBe(30); // toggle on
+    expect(simulate(out, { amount: 1000, flags: { 活動登錄: true } }).cashback).toBe(30); // toggle on
   });
 
   it('round-trips an UNSET default/mode as unset (no coercion to false/best)', () => {
@@ -353,15 +353,15 @@ describe('recommend (reverse-derive best payment)', () => {
 describe('multi-period engine (Freedom Flex: 輪動 5% + 每季 $1,500 + 需登錄)', () => {
   const j = db({
     base:  rule({ reward: cash(0.01) }), // 1% 全站,每期都在
-    rotQ1: rule({ match: { categories: ['groceries'] }, reward: cash(0.05), eligibility: { flags: ['已登錄'] }, limits: { caps: [{ metric: 'spend', window: 'period', max: 1500 }] }, period: { cycle: 'quarterly', start: '2026-01-01', end: '2026-03-31' }, stacking: { layer: 'bonus' } }),
-    rotQ2: rule({ match: { categories: ['gas'] }, reward: cash(0.05), eligibility: { flags: ['已登錄'] }, limits: { caps: [{ metric: 'spend', window: 'period', max: 1500 }] }, period: { cycle: 'quarterly', start: '2026-04-01', end: '2026-06-30' }, stacking: { layer: 'bonus' } }),
-  }, { eligibility_flags: { 已登錄: { default: false } } });
+    rotQ1: rule({ match: { categories: ['groceries'] }, reward: cash(0.05), eligibility: { flags: ['活動登錄'] }, limits: { caps: [{ metric: 'spend', window: 'period', max: 1500 }] }, period: { cycle: 'quarterly', start: '2026-01-01', end: '2026-03-31' }, stacking: { layer: 'bonus' } }),
+    rotQ2: rule({ match: { categories: ['gas'] }, reward: cash(0.05), eligibility: { flags: ['活動登錄'] }, limits: { caps: [{ metric: 'spend', window: 'period', max: 1500 }] }, period: { cycle: 'quarterly', start: '2026-04-01', end: '2026-06-30' }, stacking: { layer: 'bonus' } }),
+  }, { eligibility_flags: { 活動登錄: { default: false } } });
 
   const txns = (flag) => [
-    { date: '2026-01-15', amount: 1000, categories: ['groceries'], flags: { 已登錄: flag } },
-    { date: '2026-02-15', amount: 1000, categories: ['groceries'], flags: { 已登錄: flag } },
-    { date: '2026-04-20', amount: 1000, categories: ['groceries'], flags: { 已登錄: flag } },
-    { date: '2026-04-25', amount: 1000, categories: ['gas'], flags: { 已登錄: flag } },
+    { date: '2026-01-15', amount: 1000, categories: ['groceries'], flags: { 活動登錄: flag } },
+    { date: '2026-02-15', amount: 1000, categories: ['groceries'], flags: { 活動登錄: flag } },
+    { date: '2026-04-20', amount: 1000, categories: ['groceries'], flags: { 活動登錄: flag } },
+    { date: '2026-04-25', amount: 1000, categories: ['gas'], flags: { 活動登錄: flag } },
   ];
 
   it('登錄後:輪動依日期生效、每季 $1,500 上限各自重置', () => {
@@ -380,8 +380,8 @@ describe('multi-period engine (Freedom Flex: 輪動 5% + 每季 $1,500 + 需登�
   it('無日期 = 維持單期行為(向後相容)', () => {
     // 同樣交易但不帶日期 → 不分季、cap 共用一桶:Q1+Q2 雜貨/加油都算同一期
     const undated = [
-      { amount: 1000, categories: ['groceries'], flags: { 已登錄: true } },
-      { amount: 1000, categories: ['gas'], flags: { 已登錄: true } },
+      { amount: 1000, categories: ['groceries'], flags: { 活動登錄: true } },
+      { amount: 1000, categories: ['gas'], flags: { 活動登錄: true } },
     ];
     // 兩條輪動規則都有 period.start/end,但無日期 → inEffect 一律 true → 都可命中
     const r = simulateMonth(j, undated);
