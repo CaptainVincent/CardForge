@@ -163,3 +163,18 @@ export function recommend(json, fixed, rates = {}) {
     gainOverBase: best ? score(best) - netScore(base, json, baseTx, rates) : 0,
   };
 }
+
+// Rank cards by their best net reward for one transaction (highest first).
+export function compareCards(cards, tx, rates = {}) {
+  return cards
+    .map((c) => {
+      const best = recommend(c, tx, rates).best;
+      return { name: c.card, best, net: best ? netScore(best.result, c, best.tx, rates) : 0 };
+    })
+    .sort((a, b) => b.net - a.net);
+}
+
+// Distinct point-program names referenced by a set of cards' rules.
+export function usedPointNames(cards) {
+  return [...new Set(cards.flatMap((c) => Object.values(c.rules || {}).map((r) => r.reward?.point_name).filter(Boolean)))];
+}
