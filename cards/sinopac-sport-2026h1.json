@@ -359,13 +359,6 @@
     }
   ],
   "point_programs": {
-    "豐點": {
-      "basis": "fixed",
-      "prices": [
-        {
-          "twd_per_point": 1
-        }
-      ]
-    }
+    "豐點": { "basis": "fixed", "twd_per_point": 1 }
   }
 }

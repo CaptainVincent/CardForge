@@ -166,6 +166,6 @@
     }
   ],
   "point_programs": {
-    "OPENPOINT": { "basis": "fixed", "prices": [ { "twd_per_point": 1 } ] }
+    "OPENPOINT": { "basis": "fixed", "twd_per_point": 1 }
   }
 }

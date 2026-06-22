@@ -385,11 +385,9 @@ export function exportCards(nodes, edges) {
 }
 
 // Valuation for the point programs actually used by these cards' rules.
-// `programs` = settings shape { name: { basis, rates:[{from,rate}] } }. Emits a
-// DATED price series (engine-neutral numbers, not Beancount syntax) so a
-// consuming ledger can build a price timeline (from === absent = baseline):
-//   point_programs: { "小樹點": { basis:"fixed", prices:[ {twd_per_point:0.1},
-//                                  {from:"2026-11-10", twd_per_point:0.05} ] } }
+// `programs` = settings shape { name: { basis, rate } }. Emits ONE current value
+// per program (no time axis — rate history is the bookkeeping ledger's concern):
+//   point_programs: { "小樹點": { basis:"fixed", twd_per_point:0.1 } }
 function buildPointPrograms(cards, programs) {
   const used = new Set();
   for (const c of cards) {
@@ -398,18 +396,14 @@ function buildPointPrograms(cards, programs) {
   const out = {};
   for (const name of used) {
     const p = programs[name];
-    const valid = (p?.rates || []).filter((r) => r.rate != null && !Number.isNaN(Number(r.rate)));
-    if (!valid.length) continue; // only export configured programs
-    const prices = [...valid]
-      .sort((a, b) => (a.from || '').localeCompare(b.from || ''))
-      .map((r) => ({ ...(r.from ? { from: r.from } : {}), twd_per_point: Number(r.rate) }));
-    out[name] = { basis: p.basis || 'fixed', prices };
+    if (p?.rate == null || Number.isNaN(Number(p.rate))) continue; // only export configured programs
+    out[name] = { basis: p.basis || 'fixed', twd_per_point: Number(p.rate) };
   }
   return Object.keys(out).length ? out : null;
 }
 
-// The whole database: every card's rules under { cards: [...] }, plus the dated
-// valuation of any point programs they use (opts.pointPrograms = settings map).
+// The whole database: every card's rules under { cards: [...] }, plus the single
+// current valuation of any point programs they use (opts.pointPrograms = settings).
 export function exportToJson(nodes, edges, opts = {}) {
   const cards = exportCards(nodes, edges);
   if (cards.length === 0) return null;

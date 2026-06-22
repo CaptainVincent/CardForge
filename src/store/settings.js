@@ -3,25 +3,26 @@ import { create } from 'zustand';
 const KEY = 'cardforge:settings';
 const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
 
-// A point program's value over time is a step-function (dated rate history),
-// like an FX/Beancount price timeline:
-//   rates: [{ from: 'YYYY-MM-DD' | null, rate: number }]
-//   - from === null → baseline ("from the beginning / card activation")
-//   - the rate effective at a date = the entry with the greatest `from` that is
-//     ≤ that date (baseline counts as earliest)
-// basis: 'fixed' (issuer-defined, authoritative) | 'estimate' (your best-
-// redemption-anchored value for flexible points/miles).
+// A point program's value is ONE current TWD-per-point number + a basis.
+//   basis: 'fixed' (issuer-defined, authoritative)
+//        | 'estimate' (your best-redemption-anchored value for flexible points/miles)
+// Time-varying rates are deliberately NOT modelled here — the rule interpreter
+// keeps a single current value; analysis lets you tweak it for comparison, and
+// rate history over time is the bookkeeping ledger's job (not the rule's).
 function normalizeProgram(p) {
-  if (Array.isArray(p?.rates)) return { basis: p.basis || 'fixed', rates: p.rates.map((r) => ({ from: r.from ?? null, rate: r.rate })) };
-  // legacy just-shipped shape { rate, basis }
-  return { basis: p?.basis || 'fixed', rates: [{ from: null, rate: p?.rate ?? 1 }] };
+  if (p == null) return { basis: 'fixed', rate: 1 };
+  if (typeof p === 'number') return { basis: 'fixed', rate: p };
+  // back-compat with the old dated history { basis, rates:[{from,rate}] } → baseline.
+  if (Array.isArray(p.rates)) {
+    return { basis: p.basis || 'fixed', rate: p.rates[0]?.rate ?? 1 };
+  }
+  return { basis: p.basis || 'fixed', rate: p.rate ?? 1 };
 }
 
 function initPrograms() {
   const s = load();
-  if (s.pointPrograms) return Object.fromEntries(Object.entries(s.pointPrograms).map(([n, p]) => [n, normalizeProgram(p)]));
-  const legacy = s.pointRates || {}; // oldest shape: { name: number }
-  return Object.fromEntries(Object.entries(legacy).map(([n, rate]) => [n, { basis: 'fixed', rates: [{ from: null, rate }] }]));
+  const src = s.pointPrograms || s.pointRates || {};
+  return Object.fromEntries(Object.entries(src).map(([n, p]) => [n, normalizeProgram(p)]));
 }
 
 const persist = (pointPrograms) => {
@@ -30,64 +31,35 @@ const persist = (pointPrograms) => {
 
 export const todayISO = () => new Date().toISOString().slice(0, 10);
 
-// Index of the rate entry effective at `isoDate` (nearest-earlier `from`; all
-// future-dated → earliest). -1 if unconfigured. Single source for "which rate
-// applies now" — reused by effectiveRate and setCurrentRate.
-export function effectiveIndex(rates, isoDate) {
-  if (!rates?.length) return -1;
-  const pool = rates.map((r, i) => ({ r, i })).filter(({ r }) => r.from == null || r.from <= isoDate);
-  const candidates = pool.length ? pool : rates.map((r, i) => ({ r, i }));
-  let best = candidates[0];
-  for (const x of candidates) if ((x.r.from || '') >= (best.r.from || '')) best = x;
-  return best.i;
-}
+// The TWD value of one point (undefined if unconfigured). A trailing date arg may
+// be passed by callers and is ignored — value is a single current number.
+export const effectiveRate = (program) => program?.rate;
 
-// The rate effective at `isoDate` (string YYYY-MM-DD). undefined if unconfigured.
-export function effectiveRate(program, isoDate) {
-  const i = effectiveIndex(program?.rates, isoDate);
-  return i < 0 ? undefined : program.rates[i].rate;
-}
-
-// The engine's {name: rate} valuation map at a date (unconfigured → 1).
-export const ratesAsOf = (pointPrograms, isoDate) =>
-  Object.fromEntries(Object.entries(pointPrograms || {}).map(([n, p]) => [n, effectiveRate(p, isoDate) ?? 1]));
+// The engine's {name: rate} valuation map (unconfigured → 1).
+export const ratesAsOf = (pointPrograms) =>
+  Object.fromEntries(Object.entries(pointPrograms || {}).map(([n, p]) => [n, p?.rate ?? 1]));
 
 export const useSettings = create((set) => ({
   pointPrograms: initPrograms(),
 
   setPointBasis: (name, basis) =>
     set((s) => {
-      const prev = s.pointPrograms[name] || { rates: [{ from: null, rate: 1 }] };
+      const prev = s.pointPrograms[name] || { rate: 1 };
       const pointPrograms = { ...s.pointPrograms, [name]: { ...prev, basis } };
       persist(pointPrograms);
       return { pointPrograms };
     }),
 
-  // Replace the whole dated rate history (used by the full editor).
-  setPointRates: (name, rates) =>
+  // Set the single current value ("the point is worth this"). Analysis edits this.
+  setPointRate: (name, rate) =>
     set((s) => {
       const prev = s.pointPrograms[name] || { basis: 'fixed' };
-      const pointPrograms = { ...s.pointPrograms, [name]: { basis: prev.basis || 'fixed', rates } };
+      const pointPrograms = { ...s.pointPrograms, [name]: { basis: prev.basis || 'fixed', rate: rate == null ? 1 : rate } };
       persist(pointPrograms);
       return { pointPrograms };
     }),
 
-  // Edit the CURRENT value (the latest-dated entry; baseline if single). The
-  // common low-maintenance edit — "the point is worth this now".
-  setCurrentRate: (name, rate) =>
-    set((s) => {
-      const prev = s.pointPrograms[name] || { basis: 'fixed', rates: [] };
-      const rates = prev.rates.length ? [...prev.rates] : [{ from: null, rate }];
-      if (prev.rates.length) {
-        const i = effectiveIndex(rates, todayISO()); // edit the entry shown as "current"
-        rates[i] = { ...rates[i], rate };
-      }
-      const pointPrograms = { ...s.pointPrograms, [name]: { basis: prev.basis || 'fixed', rates } };
-      persist(pointPrograms);
-      return { pointPrograms };
-    }),
-
-  // Merge point programs restored from an imported DB JSON.
+  // Merge point programs restored from an imported DB JSON (normalized to single value).
   mergePointPrograms: (incoming) =>
     set((s) => {
       if (!incoming || !Object.keys(incoming).length) return {};

@@ -124,33 +124,18 @@ export function lintGraph(nodes, edges, pointPrograms = {}) {
     }
   }
 
-  // Point-program dated-rate integrity. Only flags CONFIGURED-but-malformed
-  // programs (unconfigured points default to 1 and are acceptable, not flagged).
-  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  // Point-program value integrity (single current value, no time axis). Only
+  // flags CONFIGURED-but-malformed programs (unconfigured points default to 1).
   const checked = new Set();
   for (const n of nodes) {
     if (n.type !== 'reward' || n.data?.rewardType !== 'points') continue;
     const name = (n.data?.pointName || '').trim();
     if (!name || checked.has(name)) continue;
     checked.add(name);
-    const rates = pointPrograms[name]?.rates;
-    if (!rates?.length) continue; // unconfigured — fine
-    const froms = [];
-    let bad = false;
-    for (const r of rates) {
-      if (r.rate == null || Number.isNaN(Number(r.rate)) || Number(r.rate) <= 0) {
-        issues.push({ id: `pt-rate-${name}`, severity: 'error', message: `點數「${name}」有不完整的點值(缺數值或 ≤ 0)`, nodeId: n.id });
-        bad = true; break;
-      }
-      if (r.from != null && !dateRe.test(r.from)) {
-        issues.push({ id: `pt-date-${name}`, severity: 'error', message: `點數「${name}」的點值變更缺少有效日期`, nodeId: n.id });
-        bad = true; break;
-      }
-      if (r.from != null) froms.push(r.from);
-    }
-    if (!bad) {
-      const dup = froms.find((d, i) => froms.indexOf(d) !== i);
-      if (dup) issues.push({ id: `pt-dup-${name}`, severity: 'warning', message: `點數「${name}」有重複生效日(${dup})的點值`, nodeId: n.id });
+    const rate = pointPrograms[name]?.rate;
+    if (rate == null) continue; // unconfigured — fine
+    if (Number.isNaN(Number(rate)) || Number(rate) <= 0) {
+      issues.push({ id: `pt-rate-${name}`, severity: 'error', message: `點數「${name}」的點值無效(需為大於 0 的數值)`, nodeId: n.id });
     }
   }
 

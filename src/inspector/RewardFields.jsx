@@ -3,22 +3,20 @@ import SegmentedControl from './fields/SegmentedControl';
 import NumberField from './fields/NumberField';
 import TextField from './fields/TextField';
 import TierEditor from './fields/TierEditor';
-import RateTimeline from './fields/RateTimeline';
 import FieldGroup from './fields/FieldGroup';
 import InfoHint from './fields/InfoHint';
 import AutoTextarea from './fields/AutoTextarea';
 import { REWARD_METHODS, REWARD_TYPES, LAYERS, REWARD_CURRENCIES, TIER_MODES, BASIS_OPTIONS } from '../lib/options';
-import { useSettings, todayISO } from '../store/settings';
+import { useSettings } from '../store/settings';
 
 export default function RewardFields({ data, update }) {
   const method = data.method || 'percentage';
   const tierMode = data.tierMode || 'flat';
   const pointPrograms = useSettings((s) => s.pointPrograms);
-  const setPointRates = useSettings((s) => s.setPointRates);
+  const setPointRate = useSettings((s) => s.setPointRate);
   const setPointBasis = useSettings((s) => s.setPointBasis);
   const pn = data.pointName?.trim();
   const prog = (pn && pointPrograms[pn]) || {};
-  const today = todayISO();
   const active = data.isActive !== false;
   return (
     <>
@@ -64,9 +62,9 @@ export default function RewardFields({ data, update }) {
             <TextField label="點數名稱" value={data.pointName} placeholder="小樹點 / OPENPOINT" onChange={(v) => update({ pointName: v })} />
             {pn && (
               <div className="space-y-2.5 rounded-lg border border-[var(--cf-border)] bg-[var(--cf-surface)] p-2.5">
-                <span className="cf-field-label !mb-0">點值 <span className="text-[var(--cf-text-faint)]">(全卡共用)</span><InfoHint text="點值全卡共用,且會記住舊值讓過去試算仍準確。「起始」自動涵蓋到卡片啟用日;按「異動」加一筆「生效日→新值」隨時間覆蓋。固定=官方比值、估算=彈性點/里程的最佳兌換估值。" /></span>
+                <span className="cf-field-label !mb-0">點值 <span className="text-[var(--cf-text-faint)]">(全卡共用)</span><InfoHint text="每點價值(TWD),全卡共用;只記一個目前值。固定=官方比值、估算=彈性點/里程的最佳兌換估值。分析可就地微調比較;隨時間的變動由記帳補。" /></span>
                 <SegmentedControl label="比值基準" value={prog.basis ?? 'fixed'} options={BASIS_OPTIONS} onChange={(v) => setPointBasis(pn, v)} />
-                <RateTimeline rates={prog.rates} onChange={(next) => setPointRates(pn, next)} today={today} />
+                <NumberField label="每點價值 (TWD)" step="0.01" value={prog.rate} placeholder="例:1" onChange={(v) => setPointRate(pn, v)} />
               </div>
             )}
           </>

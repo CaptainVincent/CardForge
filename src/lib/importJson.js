@@ -291,15 +291,16 @@ export function importFromJson(json) {
   _id = 0;
   const nodes = [];
   const edges = [];
-  // Point-program valuations restored into app settings (dated rate history).
+  // Point-program valuation → ONE current value (no time axis). Accept single
+  // { twd_per_point } / { rate }, or legacy dated `prices[]` (take the initial /
+  // baseline entry). Rate history over time belongs to the bookkeeping ledger.
   const pointPrograms = {};
   for (const [name, v] of Object.entries(json?.point_programs || {})) {
-    if (Array.isArray(v?.prices)) {
-      pointPrograms[name] = { basis: v.basis || 'fixed', rates: v.prices.map((p) => ({ from: p.from ?? null, rate: p.twd_per_point ?? 1 })) };
-    } else {
-      // back-compat: earlier single-rate export ({ twd_per_point, basis, as_of })
-      pointPrograms[name] = { basis: v?.basis || 'fixed', rates: [{ from: v?.as_of ?? null, rate: v?.twd_per_point ?? 1 }] };
-    }
+    let rate = 1;
+    if (Array.isArray(v?.prices) && v.prices.length) rate = v.prices[0].twd_per_point ?? 1;
+    else if (v?.twd_per_point != null) rate = v.twd_per_point;
+    else if (v?.rate != null) rate = v.rate;
+    pointPrograms[name] = { basis: v?.basis || 'fixed', rate };
   }
   const list = Array.isArray(json?.cards) ? json.cards : (json?.card || json?.rules ? [json] : []);
   if (list.length === 0) return { nodes: [], edges: [], pointPrograms };

@@ -2,10 +2,9 @@ import { useMemo, useState } from 'react';
 import { exportCards } from '../lib/exportJson';
 import { simulate, simulateMonth, deriveTxFieldsFromJson, mergeFields, valueOf } from '../lib/simulate';
 import { recommend, compareCards, usedPointNames } from '../lib/recommend';
-import { useSettings, effectiveRate, ratesAsOf, todayISO } from '../store/settings';
+import { useSettings, effectiveRate, ratesAsOf } from '../store/settings';
 import ModalOverlay from './ModalOverlay';
 import SegmentedControl from '../inspector/fields/SegmentedControl';
-import RateTimeline from '../inspector/fields/RateTimeline';
 import { CHANNEL_OPTIONS, CATEGORY_OPTIONS, PM_OPTIONS, CURRENCY_OPTIONS, BASIS_OPTIONS, labelOf } from '../lib/options';
 
 const num = (v) => Number(v).toLocaleString();
@@ -53,11 +52,9 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
   const cardFields = useMemo(() => cards.map((c) => deriveTxFieldsFromJson(c)), [cards]);
   const pointPrograms = useSettings((s) => s.pointPrograms);
   const setPointBasis = useSettings((s) => s.setPointBasis);
-  const setPointRates = useSettings((s) => s.setPointRates);
-  const setCurrentRate = useSettings((s) => s.setCurrentRate);
-  const today = todayISO();
-  // Engine values points by a plain {name: rate} map — the rate effective today.
-  const rates = useMemo(() => ratesAsOf(pointPrograms, today), [pointPrograms, today]);
+  const setPointRate = useSettings((s) => s.setPointRate);
+  // Engine values points by a plain {name: rate} map (single current value).
+  const rates = useMemo(() => ratesAsOf(pointPrograms), [pointPrograms]);
   const pointNames = useMemo(() => usedPointNames(cards), [cards]);
 
   const [tab, setTab] = useState('test');
@@ -257,42 +254,33 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                   <div className="mt-1.5 space-y-2">
                     {pointNames.map((name) => {
                       const prog = pointPrograms[name];
-                      const cur = effectiveRate(prog, today) ?? 1;
-                      const changes = (prog?.rates?.length || 1) - 1;
+                      const cur = effectiveRate(prog) ?? 1;
                       return (
-                        <div key={name} className="rounded-lg border border-[var(--cf-border)] p-2">
-                          <div className="flex items-center gap-2">
-                            <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--cf-text)]">{name}</span>
-                            <div className="cf-seg !mt-0 !w-auto flex-none">
-                              {BASIS_OPTIONS.map((o) => (
-                                <button
-                                  key={o.value}
-                                  type="button"
-                                  title={o.value === 'fixed' ? '官方固定比值' : '彈性點/里程,你錨定最佳兌換的估值'}
-                                  className={`!px-2 !text-[11px] ${(prog?.basis ?? 'fixed') === o.value ? 'is-active' : ''}`}
-                                  onClick={() => setPointBasis(name, o.value)}
-                                >{o.label}</button>
-                              ))}
-                            </div>
-                            <input
-                              type="number" step="0.1"
-                              className="cf-input !mt-0 !w-16 flex-none !py-1"
-                              value={cur}
-                              onChange={(e) => setCurrentRate(name, e.target.value === '' ? 1 : Number(e.target.value))}
-                            />
+                        <div key={name} className="flex items-center gap-2 rounded-lg border border-[var(--cf-border)] p-2">
+                          <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--cf-text)]">{name}</span>
+                          <div className="cf-seg !mt-0 !w-auto flex-none">
+                            {BASIS_OPTIONS.map((o) => (
+                              <button
+                                key={o.value}
+                                type="button"
+                                title={o.value === 'fixed' ? '官方固定比值' : '彈性點/里程,你錨定最佳兌換的估值'}
+                                className={`!px-2 !text-[11px] ${(prog?.basis ?? 'fixed') === o.value ? 'is-active' : ''}`}
+                                onClick={() => setPointBasis(name, o.value)}
+                              >{o.label}</button>
+                            ))}
                           </div>
-                          <details className="mt-1">
-                            <summary className="cursor-pointer text-[11px] text-[var(--cf-text-faint)]">時間軸{changes > 0 ? `（${changes} 次異動）` : ''}</summary>
-                            <div className="mt-1.5">
-                              <RateTimeline rates={prog?.rates} onChange={(next) => setPointRates(name, next)} today={today} />
-                            </div>
-                          </details>
+                          <input
+                            type="number" step="0.01"
+                            className="cf-input !mt-0 !w-16 flex-none !py-1"
+                            value={cur}
+                            onChange={(e) => setPointRate(name, e.target.value === '' ? 1 : Number(e.target.value))}
+                          />
                         </div>
                       );
                     })}
                   </div>
                   <p className="mt-2 text-[10px] leading-relaxed text-[var(--cf-text-faint)]">
-                    平常只需一個「點值」;銀行調整時展開「時間軸」按「異動」記一筆(填生效日),舊值自動保留。<strong>固定</strong>=官方比值、<strong>估算</strong>=彈性點/里程的最佳兌換估值。
+                    一個目前「點值」即可,<strong>就地微調</strong>比較回饋;隨時間的匯率變動由記帳補。<strong>固定</strong>=官方比值、<strong>估算</strong>=彈性點/里程的最佳兌換估值。
                   </p>
                 </div>
               )}
