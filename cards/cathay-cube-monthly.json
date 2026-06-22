@@ -1,0 +1,112 @@
+{
+  "cards": [
+    {
+      "card": "國泰世華 CUBE 信用卡",
+      "account": "Liabilities:CreditCard:Cathay:CUBE",
+      "rounding": "round",
+      "fx_fee_rate": 1.5,
+      "select_groups": { "cube-plan": { "mode": "best" } },
+      "rules": {
+        "base": {
+          "id": "base",
+          "name": "一般消費 0.3%(小樹點)",
+          "card": "國泰世華 CUBE 信用卡",
+          "account": "Liabilities:CreditCard:Cathay:CUBE",
+          "account_match": "exact",
+          "is_active": true,
+          "period": { "cycle": "monthly" },
+          "match": { "exclude": { "categories": ["convenience"] } },
+          "eligibility": {},
+          "reward": { "type": "points", "method": "percentage", "rate": 0.003, "point_name": "小樹點" },
+          "tiers": { "mode": "flat" },
+          "limits": {},
+          "stacking": { "layer": "base", "group": "cathay-cube", "select_group": "cube-plan" },
+          "note": "非指定通路的一般消費 0.3%;超商不計一般回饋(須選『集精選』方案才有 2%)。其餘排除(未結構化):全聯、稅費/分期/保費/儲值/繳費平台/規費/eTag/博奕/虛擬貨幣等。"
+        },
+        "plan_digital": {
+          "id": "plan_digital",
+          "name": "玩數位 指定線上 2%(自選方案·預設選此)",
+          "card": "國泰世華 CUBE 信用卡",
+          "account": "Liabilities:CreditCard:Cathay:CUBE",
+          "account_match": "exact",
+          "is_active": true,
+          "period": { "cycle": "monthly" },
+          "match": { "channels": ["online"] },
+          "eligibility": {},
+          "reward": { "type": "points", "method": "percentage", "rate": 0.02, "point_name": "小樹點" },
+          "tiers": { "mode": "flat" },
+          "limits": {},
+          "stacking": { "layer": "base", "group": "cathay-cube", "select_group": "cube-plan" },
+          "note": "四大自選方案每月可免費切換、同時只能選一個 → 以擇一·自選(同 select_group;以 is_active 標出本月選哪個)。此處以『指定線上消費』近似;玩數位實際指定通路清單(影音/外送/電商…)官網以圖片/方案頁呈現,未逐一明列。"
+        },
+        "plan_dining": {
+          "id": "plan_dining",
+          "name": "樂饗購 指定餐飲/購物 2%(自選方案)",
+          "card": "國泰世華 CUBE 信用卡",
+          "account": "Liabilities:CreditCard:Cathay:CUBE",
+          "account_match": "exact",
+          "is_active": false,
+          "period": { "cycle": "monthly" },
+          "match": { "categories": ["dining", "department"] },
+          "eligibility": {},
+          "reward": { "type": "points", "method": "percentage", "rate": 0.02, "point_name": "小樹點" },
+          "tiers": { "mode": "flat" },
+          "limits": {},
+          "stacking": { "layer": "base", "group": "cathay-cube", "select_group": "cube-plan" },
+          "note": "自選方案之一(預設未選)。以餐飲/百貨近似;指定通路清單未逐一明列。"
+        },
+        "plan_travel": {
+          "id": "plan_travel",
+          "name": "趣旅行 指定旅遊/交通 2%(自選方案)",
+          "card": "國泰世華 CUBE 信用卡",
+          "account": "Liabilities:CreditCard:Cathay:CUBE",
+          "account_match": "exact",
+          "is_active": false,
+          "period": { "cycle": "monthly" },
+          "match": { "categories": ["travel"] },
+          "eligibility": {},
+          "reward": { "type": "points", "method": "percentage", "rate": 0.02, "point_name": "小樹點" },
+          "tiers": { "mode": "flat" },
+          "limits": {},
+          "stacking": { "layer": "base", "group": "cathay-cube", "select_group": "cube-plan" },
+          "note": "自選方案之一(預設未選)。以旅遊/交通近似;指定通路清單未逐一明列。"
+        },
+        "plan_curated": {
+          "id": "plan_curated",
+          "name": "集精選 指定品牌/超商 2%(自選方案)",
+          "card": "國泰世華 CUBE 信用卡",
+          "account": "Liabilities:CreditCard:Cathay:CUBE",
+          "account_match": "exact",
+          "is_active": false,
+          "period": { "cycle": "monthly" },
+          "match": { "categories": ["convenience"] },
+          "eligibility": {},
+          "reward": { "type": "points", "method": "percentage", "rate": 0.02, "point_name": "小樹點" },
+          "tiers": { "mode": "flat" },
+          "limits": {},
+          "stacking": { "layer": "base", "group": "cathay-cube", "select_group": "cube-plan" },
+          "note": "自選方案之一(預設未選)。集精選涵蓋指定品牌 + 便利商店(7-11/全家/萊爾富實體門市);此處以超商近似,完整指定品牌清單官網未明列。便利商店須選此方案才享 2%。"
+        },
+        "formosa": {
+          "id": "formosa",
+          "name": "台塑家 加油/生醫 2%",
+          "card": "國泰世華 CUBE 信用卡",
+          "account": "Liabilities:CreditCard:Cathay:CUBE",
+          "account_match": "exact",
+          "is_active": true,
+          "period": { "cycle": "monthly" },
+          "match": { "merchants": ["台塑石油", "台亞加油站", "福懋加油站", "統一速邁樂加油站", "台塑生醫", "長庚生技", "台塑購物網"] },
+          "eligibility": {},
+          "reward": { "type": "points", "method": "percentage", "rate": 0.02, "point_name": "小樹點" },
+          "tiers": { "mode": "flat" },
+          "limits": {},
+          "stacking": { "layer": "bonus", "group": "cathay-cube", "select_group": "cube-plan" },
+          "note": "台塑集團通路 2%。本卡列為固定通路權益(此處設為常態 is_active);若官網實為『需選方案』請改為自選成員(is_active 由選擇決定)。"
+        }
+      }
+    }
+  ],
+  "point_programs": {
+    "小樹點": { "basis": "fixed", "twd_per_point": 1 }
+  }
+}
