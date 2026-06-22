@@ -48,10 +48,21 @@ export function exportCard(cardNode, nodes, edges) {
     for (const p of preds) {
       if (p.type === 'card') {
         if (p.id === cardId) out.push([]); // only this card's paths
-      } else if (p.type === 'condition' || p.type === 'any') {
+      } else if (p.type === 'condition') {
         const sub = chainsInto(p, new Set(seen));
         const base = sub.length ? sub : [[]];
         for (const s of base) out.push([...s, p]);
+      } else if (p.type === 'any') {
+        // 任一 = OR 閘。新模型(無內部 alternatives):它的「替代」是連入它的條件鏈,
+        // 留待 mergeConditions 從圖解析,不折進這條 AND 鏈 → 只放 [p] 當標記。
+        // 舊模型(data.alternatives):仍把它當鏈上節點(沿用其 include 前綴)以相容。
+        if (p.data?.alternatives?.length) {
+          const sub = chainsInto(p, new Set(seen));
+          const base = sub.length ? sub : [[]];
+          for (const s of base) out.push([...s, p]);
+        } else {
+          out.push([p]);
+        }
       } else if (p.type === 'gate' || p.type === 'eligibility') {
         // gate / 資格 are CONSTRAINTS (AND), not alternative paths (OR). Pass
         // through ONLY the condition chains routed through them in series; a bare
@@ -99,9 +110,10 @@ export function exportCard(cardNode, nodes, edges) {
     const orGroups = [];
     for (const c of conds) {
       if (c.type === 'any') {
-        const alts = (c.data?.alternatives || [])
-          .map(buildMatchFromData)
-          .filter((o) => Object.keys(o).length);
+        // 替代來源:舊=內部 data.alternatives;新(閘)=連入此任一的條件鏈各成一個替代。
+        const alts = c.data?.alternatives?.length
+          ? c.data.alternatives.map(buildMatchFromData).filter((o) => Object.keys(o).length)
+          : chainsInto(c).map(altMatch).filter((o) => Object.keys(o).length);
         if (alts.length) orGroups.push(alts);
         continue;
       }
@@ -118,6 +130,17 @@ export function exportCard(cardNode, nodes, edges) {
       return o;
     };
     return { include: flat(inc), exclude: flat(exc), orGroups };
+  }
+
+  // 一條「替代鏈」(連入某個任一閘的條件鏈)→ 一個 match 子句(供 or_groups 用)。
+  // 與規則主 match 同一套 buildMatch,確保 round-trip 一致。
+  function altMatch(chain) {
+    const cd = mergeConditions(chain);
+    const m = buildMatch(cd.include);
+    const ex = buildMatch(cd.exclude);
+    if (Object.keys(ex).length) m.exclude = ex;
+    if (cd.orGroups.length) m.or_groups = cd.orGroups;
+    return m;
   }
 
   // Normalize a generic predicate's value by operator.

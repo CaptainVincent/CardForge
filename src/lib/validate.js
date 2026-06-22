@@ -21,13 +21,17 @@ export function nodeIssues(node, edges, nodes = []) {
   }
 
   if (node.type === 'any') {
-    if (!hasIncoming) E('未連接來源');
-    const hasContent = (a = {}) =>
-      a.isOverseas != null || a.channels?.length || a.categories?.length ||
-      a.merchants?.length || a.currencies?.length || a.paymentMethods?.length || a.minAmountTwd ||
-      a.custom?.some((c) => c.field && c.value !== '' && c.value != null);
-    const filled = (d.alternatives || []).filter(hasContent);
-    if (filled.length < 2) E('「任一」至少需要兩個有內容的替代條件');
+    if (d.alternatives?.length) {
+      // 舊模型:內部替代(相容)。
+      const hasContent = (a = {}) =>
+        a.isOverseas != null || a.channels?.length || a.categories?.length ||
+        a.merchants?.length || a.currencies?.length || a.paymentMethods?.length || a.minAmountTwd ||
+        a.custom?.some((c) => c.field && c.value !== '' && c.value != null);
+      if (d.alternatives.filter(hasContent).length < 2) E('「任一」至少需要兩個有內容的替代條件');
+    } else {
+      // 閘模型:替代 = 連入的配對條件,需 ≥2 個。
+      if (edges.filter((e) => e.target === node.id).length < 2) E('「任一」需連入兩個以上配對條件(任一成立即可)');
+    }
   }
 
   if (node.type === 'select') {

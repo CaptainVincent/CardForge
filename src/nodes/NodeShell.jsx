@@ -31,7 +31,7 @@ export default function NodeShell({ id, type, accent, selected, summary, childre
   return (
     <div className={`cf-node cf-node--${nodeKind(type)}${selected ? ' is-selected' : ''}`} style={{ '--accent': accent }}>
       {children}
-      {incomingCount >= 2 && <span className="cf-orbadge" title="多個來源任一成立即可（OR）">任一</span>}
+      {incomingCount >= 2 && type !== 'any' && <span className="cf-orbadge" title="多個來源任一成立即可（OR）">任一</span>}
       <div className="cf-node__header">
         <div className="cf-node__icon"><NodeGlyph type={type} /></div>
         <div className="cf-node__title">{nodeTitle(type)}</div>

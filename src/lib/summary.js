@@ -63,8 +63,8 @@ const altLabel = (a = {}) => {
 
 export function anySummary(d = {}) {
   const alts = (d.alternatives || []).map(altLabel).filter(Boolean);
-  if (!alts.length) return '任一（尚未設定）';
-  return alts.join(' 或 ');
+  if (!alts.length) return '連入的條件任一成立（或）'; // 閘模型:替代是連入的配對條件
+  return alts.join(' 或 '); // 舊模型:內部替代
 }
 
 export function rewardSummary(d = {}) {

@@ -106,49 +106,42 @@ function importOneCard(json, nodes, edges, yBase) {
 
   for (const group of Object.values(byMatch)) {
     const m = group.match;
+    const incKeys = Object.keys(m).filter((k) => k !== 'or_groups' && k !== 'exclude');
+    let condSource = null;
 
-    // Condition node
-    const condId = nextId();
-    nodes.push({
-      id: condId,
-      type: 'condition',
-      position: { x: 350, y: groupY },
-      data: jsonMatchToNodeData(m),
-    });
-    edges.push(edge(cardId, condId));
-
-    // Exclusion (NOT) → a negated condition node chained after the include one.
-    let condSource = condId;
-    if (m.exclude && Object.keys(m.exclude).length) {
-      const ex = m.exclude;
-      const exId = nextId();
-      nodes.push({
-        id: exId,
-        type: 'condition',
-        position: { x: 545, y: groupY },
-        data: jsonMatchToNodeData(ex, { negate: true }),
-      });
-      edges.push(edge(condId, exId));
-      condSource = exId;
-    }
-
-    // Cross-field OR groups → a chained `任一` node per group.
+    // 跨欄位「或」→ 任一閘:每個替代 = 一個可見的 condition 節點,card→替代→任一。
+    // (任一是純邏輯閘,OR 它連入的條件、單一輸出、發一次;替代不再藏在節點表單。)
     (m.or_groups || []).forEach((groupAlts, gi) => {
       const anyId = nextId();
-      nodes.push({
-        id: anyId,
-        type: 'any',
-        position: { x: 545 + (gi + 1) * 170, y: groupY },
-        data: {
-          alternatives: (groupAlts || []).map((sub) => jsonMatchToNodeData(sub)),
-        },
+      nodes.push({ id: anyId, type: 'any', position: { x: 350 + gi * 200, y: groupY }, data: {} });
+      (groupAlts || []).forEach((sub, ai) => {
+        const altId = nextId();
+        nodes.push({ id: altId, type: 'condition', position: { x: 150, y: groupY + ai * 70 }, data: jsonMatchToNodeData(sub) });
+        edges.push(edge(cardId, altId)); // 替代條件從卡片可達
+        edges.push(edge(altId, anyId));  // 替代條件 → 任一(OR 輸入)
       });
-      edges.push(edge(condSource, anyId));
+      if (condSource) edges.push(edge(condSource, anyId)); // (罕見)串接前一閘
       condSource = anyId;
     });
 
-    // Push downstream nodes right to make room for any inserted 任一 nodes.
-    const dx = (m.or_groups?.length || 0) * 170;
+    // include 配對條件(AND):有 include 欄位、或沒有任一(規則需有從卡片來的節點)時才建。
+    if (incKeys.length || !condSource) {
+      const condId = nextId();
+      nodes.push({ id: condId, type: 'condition', position: { x: 350, y: groupY }, data: jsonMatchToNodeData(m) });
+      edges.push(edge(condSource || cardId, condId));
+      condSource = condId;
+    }
+
+    // 排除(NOT)→ 串在後面的負向條件節點。
+    if (m.exclude && Object.keys(m.exclude).length) {
+      const exId = nextId();
+      nodes.push({ id: exId, type: 'condition', position: { x: 545, y: groupY }, data: jsonMatchToNodeData(m.exclude, { negate: true }) });
+      edges.push(edge(condSource, exId));
+      condSource = exId;
+    }
+
+    // Push downstream nodes right to make room for inserted 任一/替代 nodes.
+    const dx = (m.or_groups?.length || 0) * 200;
 
     let ruleY = groupY;
     for (const rule of group.rules) {

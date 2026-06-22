@@ -665,6 +665,30 @@ describe('擇一·自選 over 一次性首刷禮(互斥身分:新戶/既有戶)'
   });
 });
 
+describe('任一(OR 閘):or_groups ↔「條件→任一閘」round-trip + 發一次', () => {
+  const src = { cards: [{ card: 'A', account: 'Liabilities:CreditCard:A', rounding: 'none',
+    rules: { r: { id: 'r', card: 'A', account: 'Liabilities:CreditCard:A',
+      match: { or_groups: [[{ is_overseas: true }, { merchants: ['迪士尼'] }]] },
+      reward: cash(0.02), tiers: { mode: 'flat' }, limits: {}, stacking: { layer: 'base' } } } }] };
+  it('import 成可見閘(條件→任一)、export 還原 or_groups、命中任一只發一次', () => {
+    const { nodes, edges } = importFromJson(src);
+    const any = nodes.find((n) => n.type === 'any');
+    expect(any).toBeTruthy();
+    expect(any.data?.alternatives?.length || 0).toBe(0);          // 純閘,無內部替代
+    expect(edges.filter((e) => e.target === any.id).length).toBe(2); // 2 個替代條件連入
+    const out = exportToJson(nodes, edges).cards[0];
+    const og = Object.values(out.rules)[0].match.or_groups;
+    expect(og).toHaveLength(1);
+    expect(og[0]).toHaveLength(2);
+    expect(JSON.stringify(og[0])).toContain('is_overseas');        // round-trip 保留替代
+    expect(JSON.stringify(og[0])).toContain('迪士尼');
+    expect(simulate(out, { amount: 1000, isOverseas: true }).cashback).toBe(20); // 海外命中
+    expect(simulate(out, { amount: 1000, merchant: '迪士尼' }).cashback).toBe(20); // 迪士尼命中
+    expect(simulate(out, { amount: 1000 }).cashback).toBe(0);      // 都不中
+    expect(simulate(out, { amount: 1000, isOverseas: true, merchant: '迪士尼' }).cashback).toBe(20); // 兩者都中只發一次
+  });
+});
+
 describe('cardRows(規則 → 條列對照表)', () => {
   const card = { card: 'X', rules: {
     base: { id: 'base', match: { is_overseas: false }, reward: { type: 'cashback', method: 'percentage', rate: 0.005 }, stacking: { layer: 'base' } },
