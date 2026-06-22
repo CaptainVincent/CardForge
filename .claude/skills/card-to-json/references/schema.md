@@ -132,6 +132,7 @@
   "categories": ["dining", "supermarket", "convenience", "gas", "travel", "streaming", "department", "drugstore"],
   "mcc": ["5812", "5811-5814"],
   "merchants": ["7-11", "全家", "星巴克"],
+  "countries": ["日本", "韓國"],
   "payment_methods": ["apple_pay", "google_pay", "line_pay", "jkopay", "pxpay"],
   "min_amount_twd": 1000,
   "day_of_week": ["fri", "sat", "sun"],
@@ -155,6 +156,8 @@
   `pxpay`(全支付)、`easywallet`(悠遊付)、`ipass_money`(一卡通MONEY)、`taiwan_pay`(台灣Pay)、
   `pi_wallet`(Pi錢包)、`easycard`(悠遊卡)、`ipass`(一卡通)。
 - `currencies`:ISO 幣別碼(`JPY`/`USD`/`EUR`…);`is_overseas` 為布林(true=海外、false=國內)。
+- `countries`(**消費國別/地區**):自由字串陣列(`["日本","韓國"]`),交易的 `country` 命中任一即算。
+  用於 travel / 雙幣卡的「日本 X% / 韓國 Y%」這種**依消費地**的加碼(`is_overseas` 只分國內外,分不出國家)。
 - `mcc`:**MCC 一級欄位**(美系卡常依 MCC 判別)。陣列,每項為單碼(`"5812"`)或範圍
   (`"5811-5814"`,含端點);交易的 `mcc` 命中任一即算。比 `categories`(策展類別)更精準,
   能表達官網明列 MCC 的加碼;不必再塞 `custom`。

@@ -566,6 +566,15 @@ describe('筆數門檻(當期滿 N 筆才解鎖;min_spending.metric:count)', () 
   });
 });
 
+describe('消費國別 countries(travel/雙幣:依 tx.country 命中)', () => {
+  const j = db({ jp: rule({ match: { countries: ['日本'] }, reward: cash(0.025) }) });
+  it('依 tx.country 命中對應國別規則', () => {
+    expect(simulate(j, { amount: 1000, country: '日本' }).cashback).toBe(25);
+    expect(simulate(j, { amount: 1000, country: '韓國' }).cashback).toBe(0);
+    expect(simulate(j, { amount: 1000 }).cashback).toBe(0); // 未給國別 → 不命中
+  });
+});
+
 describe('時段條件(卡友日:星期/每月某號,由交易日期推算)', () => {
   it('週五規則只在週五命中(tx.date 推算星期;或顯式 dayOfWeek)', () => {
     const fri = db({ r: rule({ match: { day_of_week: ['fri'] }, reward: cash(0.05) }) });

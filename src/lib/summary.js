@@ -26,6 +26,7 @@ export function conditionSummary(d = {}) {
   const parts = [];
   if (d.isOverseas === true) parts.push('海外');
   if (d.isOverseas === false) parts.push('國內');
+  if (d.countries?.length) parts.push(d.countries.join('/'));
   if (d.currencies?.length) parts.push(d.currencies.join('/'));
   if (d.channels?.length) parts.push(d.channels.map((c) => labelOf(CHANNEL_OPTIONS, c)).join('/'));
   if (d.categories?.length) parts.push(d.categories.map((c) => labelOf(CATEGORY_OPTIONS, c)).join('/'));
@@ -46,6 +47,7 @@ const altLabel = (a = {}) => {
   const p = [];
   if (a.isOverseas === true) p.push('海外');
   if (a.isOverseas === false) p.push('國內');
+  if (a.countries?.length) p.push(a.countries.join('/'));
   if (a.currencies?.length) p.push(a.currencies.join('/'));
   if (a.channels?.length) p.push(a.channels.map((c) => labelOf(CHANNEL_OPTIONS, c)).join('/'));
   if (a.categories?.length) p.push(a.categories.map((c) => labelOf(CATEGORY_OPTIONS, c)).join('/'));

@@ -18,4 +18,6 @@ export const MATCH_LIST_FIELDS = [
   // 時間條件(卡友日/週幾、每月某號)— 交易日期屬性,引擎由 tx.date 推算。
   { json: 'day_of_week', node: 'dayOfWeek' },   // ['mon'..'sun']
   { json: 'day_of_month', node: 'dayOfMonth' }, // [1..31]
+  // 消費國別/地區(travel/雙幣卡:日本/韓國…)— 交易屬性 tx.country。
+  { json: 'countries', node: 'countries' },     // ['日本','韓國',…]
 ];

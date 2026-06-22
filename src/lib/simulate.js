@@ -127,6 +127,7 @@ function matchClause(m, tx) {
   if (m.categories?.length && !m.categories.some((c) => tx.categories?.includes(c))) return false;
   if (m.mcc?.length && !mccMatch(m.mcc, tx.mcc)) return false;
   if (m.merchants?.length && !m.merchants.includes(tx.merchant)) return false;
+  if (m.countries?.length && !m.countries.includes(tx.country)) return false;
   if (m.payment_methods?.length && !m.payment_methods.includes(tx.paymentMethod)) return false;
   if (m.min_amount_twd && Number(tx.amount) < m.min_amount_twd) return false;
   if (m.day_of_week?.length) { const wd = weekdayOf(tx); if (!wd || !m.day_of_week.includes(wd)) return false; }
@@ -507,6 +508,7 @@ export function deriveTxFieldsFromJson(json) {
     categories: uniq(ms.flatMap((m) => m.categories || [])),
     merchants: uniq(ms.flatMap((m) => m.merchants || [])),
     paymentMethods: uniq(ms.flatMap((m) => m.payment_methods || [])),
+    countries: uniq(ms.flatMap((m) => m.countries || [])),
     hasMcc: ms.some((m) => m.mcc?.length),
     customFields: uniq(ms.flatMap((m) => (m.custom || []).map((p) => p.field)).filter(Boolean)),
     hasGateOrTiers: rules.some((r) => r.tiers?.mode === 'spend' || r.eligibility?.min_spending || r.eligibility?.pool),
@@ -535,6 +537,7 @@ export function mergeFields(list) {
     categories: uniq(list.flatMap((f) => f.categories)),
     merchants: uniq(list.flatMap((f) => f.merchants || [])),
     paymentMethods: uniq(list.flatMap((f) => f.paymentMethods)),
+    countries: uniq(list.flatMap((f) => f.countries || [])),
     hasMcc: list.some((f) => f.hasMcc),
     customFields: uniq(list.flatMap((f) => f.customFields)),
     hasGateOrTiers: list.some((f) => f.hasGateOrTiers),

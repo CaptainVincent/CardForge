@@ -80,6 +80,15 @@ export default function ConditionFields({ data, update }) {
           options={REGION_OPTIONS}
           onChange={(v) => update({ isOverseas: v })}
         />
+        <label className="block">
+          <span className="cf-field-label">國別<span className="text-[var(--cf-text-faint)]">(消費地,逗號分隔。例:日本, 韓國)</span></span>
+          <input
+            className="cf-input"
+            value={(data.countries || []).join(', ')}
+            placeholder="不限"
+            onChange={(e) => update({ countries: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+          />
+        </label>
         <ChipMultiSelect
           label="幣別（多選）"
           values={data.currencies || []}

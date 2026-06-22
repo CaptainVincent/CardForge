@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "cards:check": "node scripts/audit-cards.mjs"
+    "cards:check": "node scripts/audit-cards.mjs",
+    "check": "pnpm lint && pnpm test && pnpm build && pnpm cards:check"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",

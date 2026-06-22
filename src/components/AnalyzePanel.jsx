@@ -62,7 +62,7 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
   const sel = Math.min(idx, Math.max(cards.length - 1, 0));
   const fields = tab === 'compare' ? mergeFields(cardFields.length ? cardFields : [{}]) : (cardFields[sel] || {});
 
-  const [f, setF] = useState({ amount: 1000, date: '', region: null, currency: null, channels: [], categories: [], mcc: '', merchant: null, paymentMethod: null, periodSpend: '', custom: {}, flags: {}, distinctCount: '', hasFee: true });
+  const [f, setF] = useState({ amount: 1000, date: '', region: null, currency: null, country: null, channels: [], categories: [], mcc: '', merchant: null, paymentMethod: null, periodSpend: '', custom: {}, flags: {}, distinctCount: '', hasFee: true });
   const set = (patch) => setF((s) => ({ ...s, ...patch }));
   const toggle = (key, v) => setF((s) => ({ ...s, [key]: s[key].includes(v) ? s[key].filter((x) => x !== v) : [...s[key], v] }));
 
@@ -70,6 +70,7 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
     const t = { amount: Number(f.amount) || 0, custom: f.custom, periodSpend: f.periodSpend };
     if (f.region != null) t.isOverseas = f.region;
     if (f.currency) t.currency = f.currency;
+    if (f.country) t.country = f.country;
     if (f.channels.length) t.channels = f.channels;
     if (f.categories.length) t.categories = f.categories;
     if (f.mcc) t.mcc = f.mcc;
@@ -167,6 +168,15 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                 </div>
               )}
 
+              {fields.countries?.length > 0 && (
+                <label className="block">
+                  <span className="cf-field-label">消費國別</span>
+                  <select className="cf-select" value={f.country || ''} onChange={(e) => set({ country: e.target.value || null })}>
+                    <option value="">不限</option>
+                    {fields.countries.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </label>
+              )}
               {fields.currencies?.length > 0 && (
                 <label className="block">
                   <span className="cf-field-label">幣別</span>

@@ -1,0 +1,4 @@
+#!/bin/sh
+# 強制關卡:每次 commit 前稽核所有卡片在最新格式下仍相容(import→export 冪等 + simulate)。
+# 格式不相容 → 擋下 commit。升級訊號(⚠️)只提醒、不擋。
+node scripts/audit-cards.mjs || { echo "✗ cards:check 失敗 → commit 中止(先把舊卡回填到新格式)"; exit 1; }
