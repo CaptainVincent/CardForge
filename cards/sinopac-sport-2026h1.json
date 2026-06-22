@@ -39,14 +39,17 @@
           "account": "Liabilities:CreditCard:SinoPac:SPORT",
           "account_match": "exact",
           "is_active": true,
-          "requires_activation": true,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
             "end": "2026-06-30"
           },
           "match": {},
-          "eligibility": {},
+          "eligibility": {
+            "flags": [
+              "已登錄"
+            ]
+          },
           "reward": {
             "type": "points",
             "method": "percentage",
@@ -77,7 +80,6 @@
           "account": "Liabilities:CreditCard:SinoPac:SPORT",
           "account_match": "exact",
           "is_active": true,
-          "requires_activation": true,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
@@ -91,7 +93,11 @@
               "garmin_pay"
             ]
           },
-          "eligibility": {},
+          "eligibility": {
+            "flags": [
+              "已登錄"
+            ]
+          },
           "reward": {
             "type": "points",
             "method": "percentage",
@@ -123,7 +129,6 @@
           "account": "Liabilities:CreditCard:SinoPac:SPORT",
           "account_match": "exact",
           "is_active": true,
-          "requires_activation": true,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
@@ -157,7 +162,11 @@
               "Steam"
             ]
           },
-          "eligibility": {},
+          "eligibility": {
+            "flags": [
+              "已登錄"
+            ]
+          },
           "reward": {
             "type": "points",
             "method": "percentage",
@@ -189,7 +198,6 @@
           "account": "Liabilities:CreditCard:SinoPac:SPORT",
           "account_match": "exact",
           "is_active": true,
-          "requires_activation": true,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
@@ -203,7 +211,11 @@
               "實體門市"
             ]
           },
-          "eligibility": {},
+          "eligibility": {
+            "flags": [
+              "已登錄"
+            ]
+          },
           "reward": {
             "type": "points",
             "method": "percentage",
@@ -236,7 +248,6 @@
           "account": "Liabilities:CreditCard:SinoPac:SPORT",
           "account_match": "exact",
           "is_active": true,
-          "requires_activation": true,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
@@ -250,7 +261,11 @@
               "官網"
             ]
           },
-          "eligibility": {},
+          "eligibility": {
+            "flags": [
+              "已登錄"
+            ]
+          },
           "reward": {
             "type": "points",
             "method": "percentage",
@@ -282,7 +297,6 @@
           "card": "永豐 SPORT卡",
           "account": "Liabilities:CreditCard:SinoPac:SPORT",
           "account_match": "exact",
-          "is_active": false,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
@@ -296,7 +310,11 @@
               "garmin_pay"
             ]
           },
-          "eligibility": {},
+          "eligibility": {
+            "flags": [
+              "新戶"
+            ]
+          },
           "reward": {
             "type": "cashback",
             "method": "percentage",
@@ -333,6 +351,10 @@
             "pay3nuli"
           ]
         }
+      },
+      "eligibility_flags": {
+        "已登錄": {},
+        "新戶": {}
       }
     }
   ],

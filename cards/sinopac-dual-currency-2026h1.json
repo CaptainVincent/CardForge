@@ -11,7 +11,6 @@
           "card": "永豐 幣倍卡",
           "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
           "account_match": "exact",
-          "is_active": true,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
@@ -42,7 +41,6 @@
           "card": "永豐 幣倍卡",
           "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
           "account_match": "exact",
-          "is_active": true,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
@@ -111,7 +109,6 @@
           "card": "永豐 幣倍卡",
           "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
           "account_match": "exact",
-          "is_active": true,
           "period": {
             "cycle": "billing_cycle",
             "start": "2026-01-01",
@@ -139,13 +136,6 @@
                   ]
                 }
               ]
-            ],
-            "custom": [
-              {
-                "field": "tier",
-                "op": "not_in",
-                "value": "L2"
-              }
             ]
           },
           "eligibility": {},
@@ -168,9 +158,10 @@
           },
           "stacking": {
             "layer": "bonus",
-            "group": "sinopac-dual"
+            "group": "sinopac-dual",
+            "select_group": "sinopac-dual-select"
           },
-          "note": "Level 1 月上限 300(預設):設臺外幣自動扣繳+電子/行動帳單。試算時 tier 留空或填 L1。精選通路另含國外實體/日本交通卡儲值/航空/旅行社,清單『等』未盡列"
+          "note": "Level 1 月上限 300(預設採用):設臺外幣自動扣繳+電子/行動帳單。在擇優節點以「自選方案」切換等級。精選通路另含國外實體/日本交通卡儲值/航空/旅行社,清單『等』未盡列"
         },
         "select4_l2": {
           "id": "select4_l2",
@@ -178,7 +169,6 @@
           "card": "永豐 幣倍卡",
           "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
           "account_match": "exact",
-          "is_active": true,
           "period": {
             "cycle": "billing_cycle",
             "start": "2026-01-01",
@@ -206,13 +196,6 @@
                   ]
                 }
               ]
-            ],
-            "custom": [
-              {
-                "field": "tier",
-                "op": "is",
-                "value": "L2"
-              }
             ]
           },
           "eligibility": {},
@@ -235,9 +218,10 @@
           },
           "stacking": {
             "layer": "bonus",
-            "group": "sinopac-dual"
+            "group": "sinopac-dual",
+            "select_group": "sinopac-dual-select"
           },
-          "note": "Level 2 月上限 800:Level 1 條件 + 大戶/大戶Plus 或前月資產月均≥10萬。試算時 tier 填 L2 即自動改套此上限(不必手動開關)"
+          "note": "Level 2 月上限 800:Level 1 條件 + 大戶/大戶Plus 或前月資產月均≥10萬。在擇優節點切到此條即採用 800 上限"
         },
         "welcome_oversea": {
           "id": "welcome_oversea",
@@ -245,7 +229,6 @@
           "card": "永豐 幣倍卡",
           "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
           "account_match": "exact",
-          "is_active": false,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
@@ -254,7 +237,11 @@
           "match": {
             "is_overseas": true
           },
-          "eligibility": {},
+          "eligibility": {
+            "flags": [
+              "新戶"
+            ]
+          },
           "reward": {
             "type": "cashback",
             "method": "percentage",
@@ -284,7 +271,6 @@
           "card": "永豐 幣倍卡",
           "account": "Liabilities:CreditCard:SinoPac:DualCurrency",
           "account_match": "exact",
-          "is_active": false,
           "period": {
             "cycle": "monthly",
             "start": "2026-01-01",
@@ -298,7 +284,11 @@
               "garmin_pay"
             ]
           },
-          "eligibility": {},
+          "eligibility": {
+            "flags": [
+              "新戶"
+            ]
+          },
           "reward": {
             "type": "cashback",
             "method": "percentage",
@@ -322,6 +312,12 @@
           },
           "note": "限時新戶、限4400名、核卡45日內綁定、消費需核卡60日內請款"
         }
+      },
+      "select_groups": {
+        "sinopac-dual-select": {}
+      },
+      "eligibility_flags": {
+        "新戶": {}
       }
     }
   ]
