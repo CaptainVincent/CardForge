@@ -130,16 +130,16 @@
           "card": "中國信託 uniopen 聯名卡",
           "account": "Liabilities:CreditCard:CTBC:uniopen",
           "account_match": "exact",
-          "is_active": true,
+          "is_active": false,
           "period": { "cycle": "once", "from_opening_days": 30 },
           "match": {},
-          "eligibility": { "flags": ["新戶"], "min_spending": { "amount": 1, "currency": "TWD", "period": "total" } },
+          "eligibility": { "min_spending": { "amount": 1, "currency": "TWD", "period": "total" } },
           "reward": { "type": "cashback", "method": "fixed", "fixed_amount": 500, "reward_currency": "TWD" },
           "tiers": { "mode": "flat" },
           "limits": {},
-          "stacking": { "layer": "bonus", "group": "ctbc-uniopen" },
+          "stacking": { "layer": "bonus", "group": "ctbc-uniopen", "select_group": "uniopen-sub" },
           "settlement": "once",
-          "note": "新戶禮 500 點(OPENPOINT 1 點=1 元,以固定現金 500 等價表達)。核卡 30 天內任刷 1 筆;新戶定義:申辦前 12 個月內未持有任何中信信用卡正卡(不含簽帳金融卡)。限時:收件 2026/1/1~6/30、核准須 7/15 前。需卡片填『持卡開始日(opened)』解析首刷窗。與新卡禮擇一。",
+          "note": "新戶禮 500 點(OPENPOINT 1 點=1 元,以固定現金 500 等價表達)。核卡 30 天內任刷 1 筆;新戶定義:申辦前 12 個月內未持有任何中信信用卡正卡(不含簽帳金融卡)。限時:收件 2026/1/1~6/30、核准須 7/15 前。需卡片填『持卡開始日(opened)』解析首刷窗。與新卡禮『擇一(依身分)』,以擇一·自選 radio 擇一,預設皆未選。",
           "reward_posting": { "account": "Income:CreditCard:Reward:CTBC:uniopen" }
         },
         "sub-newcard": {
@@ -148,20 +148,21 @@
           "card": "中國信託 uniopen 聯名卡",
           "account": "Liabilities:CreditCard:CTBC:uniopen",
           "account_match": "exact",
-          "is_active": true,
+          "is_active": false,
           "period": { "cycle": "once", "from_opening_days": 30 },
           "match": {},
-          "eligibility": { "flags": ["既有戶新卡"], "min_spending": { "amount": 1, "currency": "TWD", "period": "total" } },
+          "eligibility": { "min_spending": { "amount": 1, "currency": "TWD", "period": "total" } },
           "reward": { "type": "cashback", "method": "fixed", "fixed_amount": 100, "reward_currency": "TWD" },
           "tiers": { "mode": "flat" },
           "limits": {},
-          "stacking": { "layer": "bonus", "group": "ctbc-uniopen" },
+          "stacking": { "layer": "bonus", "group": "ctbc-uniopen", "select_group": "uniopen-sub" },
           "settlement": "once",
-          "note": "新卡禮 100 點(既有客戶首辦 uniopen 正卡;與新戶禮 500 點互斥,依身分擇一,各設資格旗標、預設未選)。核卡 30 天內任刷 1 筆。需卡片填『持卡開始日(opened)』。",
+          "note": "新卡禮 100 點(既有客戶首辦 uniopen 正卡;與新戶禮 500 點『擇一(依身分)』,以擇一·自選 radio 擇一,預設皆未選)。核卡 30 天內任刷 1 筆。需卡片填『持卡開始日(opened)』。",
           "reward_posting": { "account": "Income:CreditCard:Reward:CTBC:uniopen" }
         }
       },
-      "eligibility_flags": { "新戶": {}, "既有戶新卡": {}, "踩點達5家(+4%)": {}, "綁定icash Pay": {} }
+      "eligibility_flags": { "踩點達5家(+4%)": {}, "綁定icash Pay": {} },
+      "select_groups": { "uniopen-sub": { "mode": "pick" } }
     }
   ],
   "point_programs": {

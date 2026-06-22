@@ -553,3 +553,20 @@ describe('lint (impossible match → relatedIds on conflicting conditions)', () 
     expect(new Set(it.relatedIds)).toEqual(new Set(['k1', 'k2']));
   });
 });
+
+describe('擇一·自選 over 一次性首刷禮(互斥身分:新戶/既有戶)', () => {
+  const sub = (id, amt, active) => rule({
+    reward: { type: 'cashback', method: 'fixed', fixed_amount: amt },
+    settlement: 'once', is_active: active,
+    stacking: { layer: 'bonus', group: 'a', select_group: 'sub' },
+  });
+  it('只認列 is_active 的那一張(恰好一張),無新引擎特例', () => {
+    const j = db({ a: sub('a', 500, true), b: sub('b', 100, false) }, { select_groups: { sub: { mode: 'pick' } } });
+    const r = simulateMonth(j, [{ amount: 1000 }]);
+    expect(r.oneTime.map((o) => o.value)).toEqual([500]); // 既有 is_active+once 處理 → 互斥
+  });
+  it('皆未選(both is_active:false)→ 不認列任何一張(預設不灌水)', () => {
+    const j = db({ a: sub('a', 500, false), b: sub('b', 100, false) }, { select_groups: { sub: { mode: 'pick' } } });
+    expect(simulateMonth(j, [{ amount: 1000 }]).oneTime).toEqual([]);
+  });
+});

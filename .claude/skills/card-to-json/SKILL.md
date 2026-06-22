@@ -196,6 +196,12 @@ node <skill 目錄>/scripts/validate.mjs cards/<bank>-<card>-<period>.json
   一次性**(它隨消費累積),別誤用 once。
 - `is_active:false` 現在只用於**純編輯期停用**(活動過期、暫時隱藏),以及 `select_group` 的 `pick`
   「擇一·自選」標出採用哪條;資格類請改用 `eligibility.flags`。
+- **互斥的「一次性」回饋(新戶禮 vs 既有戶新卡 首刷禮、或方案二選一的里程碑)→ 用「擇一·自選」
+  (`stacking.select_group` + 卡層 `select_groups:{<id>:{mode:"pick"}}`)把這些 `settlement:"once"`
+  回饋串到同一個擇一節點,以 `is_active` 標出選哪張(預設皆 `false` = 未選);不要各掛一個獨立
+  `eligibility.flags`。** 兩個獨立旗標可被同時打開 → 語意矛盾(會加總而非二選一)。引擎現有的
+  `is_active` + once 處理天生給「恰好一張」,無需新構造。(實戰修正:uniopen 新戶/新卡禮原本誤用
+  兩個資格旗標,應為一個擇一·自選。判準:互斥且「由持卡人身分決定」者 → 擇一·自選,不是資格旗標。)
 
 **讓「指定特店」看得見,不要藏進 `or_groups`**:當某個加碼是針對**特定商家/通路**(7-11、App
 Store…),用一級的 `match.merchants` 表達,讓它成為一條看得出來的規則。
