@@ -36,7 +36,7 @@ export default function NodeShell({ id, type, accent, selected, summary, childre
         <div className="cf-node__icon"><NodeGlyph type={type} /></div>
         <div className="cf-node__title">{nodeTitle(type)}</div>
         {hasIssue && (
-          <span className="ml-auto h-2 w-2 flex-none rounded-full bg-amber-400" title="尚有未完成的設定" />
+          <span className="ml-auto flex-none cf-issue-dot" title="尚有未完成的設定" />
         )}
       </div>
       <div className="cf-node__summary">{summary}</div>

@@ -258,11 +258,12 @@ export function simulate(json, tx, rates = {}) {
   const rules = Object.values(json?.rules || {});
   const fired = [];
   const skipped = [];
+  const unfired = []; // 此筆未觸發但本檔期有效的規則 → 讓 試算 顯示整張卡的能力(可發現性)
 
   for (const rule of rules) {
     if (rule.is_active === false) continue;
     if (!inEffect(rule, tx.date, json?.opened)) continue; // dated rule, txn outside its 檔期
-    if (!ruleMatches(rule, tx)) continue;
+    if (!ruleMatches(rule, tx)) { unfired.push({ id: rule.id, name: rule.name }); continue; }
     const el = eligibility(rule, tx, json);
     if (!el.ok) { skipped.push({ id: rule.id, name: rule.name, reason: el.flag ? `未滿足資格:${el.flag}` : `未達當期門檻 $${el.need?.toLocaleString?.() ?? el.need}` }); continue; }
     fired.push({
@@ -293,6 +294,7 @@ export function simulate(json, tx, rates = {}) {
     fired: effective,
     oneTime,
     skipped,
+    unfired,
   };
 }
 
@@ -502,7 +504,7 @@ export function deriveTxFieldsFromJson(json) {
   });
   const uniq = (a) => [...new Set(a)];
   return {
-    hasRegion: ms.some((m) => m.is_overseas != null),
+    hasRegion: ms.some((m) => m.is_overseas != null || m.countries?.length),
     currencies: uniq(ms.flatMap((m) => m.currencies || [])),
     channels: uniq(ms.flatMap((m) => m.channels || [])),
     categories: uniq(ms.flatMap((m) => m.categories || [])),

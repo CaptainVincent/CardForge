@@ -36,10 +36,23 @@ function triggerTx(rule, fixed) {
     merchant: fixed.merchant || null,
     paymentMethod: fixed.paymentMethod || null,
     custom: { ...(fixed.custom || {}) },
+    // 情境上下文(what-if 旋鈕):資格符合與否、計數、國別、日期。原樣帶過,
+    // triggerTx 不改寫——它只反推「怎麼刷能命中 match」,資格由使用者情境決定。
+    country: fixed.country || null,
+    date: fixed.date,
+    flags: fixed.flags || {},
+    ...(fixed.distinctCount != null ? { distinctCount: fixed.distinctCount } : {}),
   };
   const how = [];
   let note = null;
 
+  // 國別加碼(日本/韓國…):反推「去該國消費」。先設好(隱含海外),讓後面
+  // is_overseas 分支不再重複標「海外」;已固定到別國則此規則不適用。
+  if (m.countries?.length) {
+    if (tx.country && !m.countries.includes(tx.country)) return null;
+    if (!tx.country) { tx.country = m.countries[0]; how.push(m.countries[0]); }
+    if (tx.isOverseas == null) tx.isOverseas = true;
+  }
   if (m.is_overseas != null) {
     if (tx.isOverseas != null && tx.isOverseas !== m.is_overseas) return null;
     if (tx.isOverseas == null) { tx.isOverseas = m.is_overseas; how.push(m.is_overseas ? '海外' : '國內'); }
@@ -137,6 +150,10 @@ export function recommend(json, fixed, rates = {}) {
     merchant: fixed.merchant || null,
     paymentMethod: fixed.paymentMethod || null,
     custom: fixed.custom || {},
+    country: fixed.country || null,
+    date: fixed.date,
+    flags: fixed.flags || {},
+    ...(fixed.distinctCount != null ? { distinctCount: fixed.distinctCount } : {}),
   };
   const base = simulate(json, baseTx, rates);
   options.push({ how: [], note: null, result: base, tx: baseTx });

@@ -70,7 +70,8 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
     const t = { amount: Number(f.amount) || 0, custom: f.custom, periodSpend: f.periodSpend };
     if (f.region != null) t.isOverseas = f.region;
     if (f.currency) t.currency = f.currency;
-    if (f.country) t.country = f.country;
+    // 指定國別隱含海外消費(日本/韓國…),否則 is_overseas:true 的國別規則不會命中
+    if (f.country) { t.country = f.country; if (t.isOverseas == null) t.isOverseas = true; }
     if (f.channels.length) t.channels = f.channels;
     if (f.categories.length) t.categories = f.categories;
     if (f.mcc) t.mcc = f.mcc;
@@ -156,7 +157,8 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                   <span className="cf-field-label">消費地區</span>
                   <div className="cf-seg">
                     {[['不限', null], ['國內', false], ['海外', true]].map(([l, v]) => (
-                      <button key={l} type="button" className={f.region === v ? 'is-active' : ''} onClick={() => set({ region: v })}>{l}</button>
+                      // 國別是「海外」的細項;切到非海外就清掉國別,避免殘留
+                      <button key={l} type="button" className={f.region === v ? 'is-active' : ''} onClick={() => set(v === true ? { region: v } : { region: v, country: null })}>{l}</button>
                     ))}
                   </div>
                   {f.region === true && (
@@ -168,11 +170,12 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                 </div>
               )}
 
-              {fields.countries?.length > 0 && (
+              {/* 國別是「海外」的細項:選了海外才問哪一國;「其他國家」= 出國但非指定加碼國 */}
+              {fields.countries?.length > 0 && f.region === true && (
                 <label className="block">
                   <span className="cf-field-label">消費國別</span>
                   <select className="cf-select" value={f.country || ''} onChange={(e) => set({ country: e.target.value || null })}>
-                    <option value="">不限</option>
+                    <option value="">其他國家</option>
                     {fields.countries.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </label>
@@ -356,6 +359,23 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                       ))}</ul>
                     </div>
                   )}
+                  {/* 可發現性:本筆未觸發、但這張卡有的加碼(資格未符 + 條件未符),讓使用者看得到整張卡的能力 */}
+                  {(testResult.skipped?.length > 0 || testResult.unfired?.length > 0) && (
+                    <div>
+                      <div className="cf-field-label mb-1">此卡其他加碼<span className="text-[var(--cf-text-faint)]">（本筆未觸發）</span></div>
+                      <ul className="space-y-1">
+                        {testResult.skipped.map((s) => (
+                          <li key={s.id} className="flex items-start justify-between gap-2 text-xs text-[var(--cf-text-faint)]">
+                            <span className="min-w-0 flex-1 break-words leading-snug">{s.name}</span>
+                            <span className="flex-none whitespace-nowrap">{s.reason}</span>
+                          </li>
+                        ))}
+                        {testResult.unfired.map((u) => (
+                          <li key={u.id} className="text-xs text-[var(--cf-text-faint)] break-words leading-snug">{u.name}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -433,17 +453,27 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                       {rec.gainOverBase > 0 && <span className="rounded-full bg-[color-mix(in_srgb,var(--cf-warn)_16%,transparent)] px-2 py-0.5 text-[10px] font-medium text-[var(--cf-warn)]">比一般多 ${num(Math.round(rec.gainOverBase))}</span>}
                     </div>
                     {Object.keys(rec.best.result.points).length > 0 && <div className="text-xs text-[var(--cf-text-dim)]">{pointsText(rec.best.result.points)}</div>}
+                    {Object.keys(rec.best.result.points).length > 0 && (
+                      <div className="mt-1 text-[11px] text-[var(--cf-text-faint)]">≈ 估計總值 ${num(Math.round(valueOf(rec.best.result, rates)))}{usesEstimate && ' · 含估算點值'}</div>
+                    )}
                     <div className="mt-1.5 text-xs text-[var(--cf-text-dim)]">建議:{rec.best.how.length ? rec.best.how.join(' + ') : '一般消費即可'}{rec.best.note && <span className="text-[var(--cf-warn)]">({rec.best.note})</span>}</div>
                   </div>
-                  <div>
-                    <div className="cf-field-label mb-1">其他組合</div>
-                    <ul className="space-y-1">{rec.options.map((o, i) => (
-                      <li key={i} className="flex items-start justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
-                        <span className="min-w-0 flex-1 break-words leading-snug">{o.how.length ? o.how.join(' + ') : '一般消費'}</span>
-                        <span className="flex-none whitespace-nowrap text-[var(--cf-text)]">${num(o.result.cashback)}</span>
-                      </li>
-                    ))}</ul>
-                  </div>
+                  {/* 「其他」組合:排除已放到上方大卡的最佳那筆(best === options[0]) */}
+                  {rec.options.length > 1 && (
+                    <div>
+                      <div className="cf-field-label mb-1">其他組合</div>
+                      <ul className="space-y-1">{rec.options.slice(1).map((o, i) => (
+                        <li key={i} className="flex items-start justify-between gap-2 text-xs text-[var(--cf-text-dim)]">
+                          <span className="min-w-0 flex-1 break-words leading-snug">{o.how.length ? o.how.join(' + ') : '一般消費'}</span>
+                          {/* 顯示換算後總值(與排名基準一致);點數卡另附原始點數明細,避免只印 $0 */}
+                          <span className="flex-none whitespace-nowrap text-right text-[var(--cf-text)]">
+                            ${num(Math.round(valueOf(o.result, rates)))}
+                            {Object.keys(o.result.points).length > 0 && <span className="ml-1 text-[10px] text-[var(--cf-text-faint)]">{pointsText(o.result.points)}</span>}
+                          </span>
+                        </li>
+                      ))}</ul>
+                    </div>
+                  )}
                 </>
               )}
 

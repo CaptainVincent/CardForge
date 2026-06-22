@@ -447,6 +447,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   *, .cf-drop-menu, .cf-panel__body { animation: none !important; }
+  .cf-issue-dot { animation: none !important; opacity: 1; }
 }
 
 /* ---------- Handles ---------- */
@@ -491,6 +492,20 @@ body {
   border-color: var(--cf-warn) !important;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--cf-warn) 55%, transparent), var(--cf-shadow);
   animation: cf-flag-pulse 1.1s ease-in-out 2;
+}
+
+/* 節點「尚有未完成設定」提示點:呼吸燈 —— 柔和明暗 + 漸開光暈,
+   持續引導注意但不刺眼。色用語義 token,深淺主題一致。 */
+@keyframes cf-breathe {
+  0%, 100% { opacity: 0.5; box-shadow: 0 0 0 0 color-mix(in srgb, var(--cf-warn) 0%, transparent); }
+  50% { opacity: 1; box-shadow: 0 0 0 3px color-mix(in srgb, var(--cf-warn) 24%, transparent); }
+}
+.cf-issue-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--cf-warn);
+  animation: cf-breathe 1.8s ease-in-out infinite;
 }
 
 /* ---------- Edges ---------- */

@@ -348,6 +348,28 @@ describe('recommend (reverse-derive best payment)', () => {
     expect(best.how.join(' ')).toMatch(/mobile_pay|行動支付|Pay/i);
     expect(best.result.cashback).toBe(60); // base 10 + bonus 50 stack
   });
+
+  it('情境旗標(登錄)會傳入推薦:未登錄→只有 base,登錄→加碼生效', () => {
+    const j = db({
+      base: rule({ reward: cash(0.01) }),
+      act:  rule({ reward: cash(0.05), eligibility: { flags: ['活動登錄'] }, stacking: { layer: 'bonus' } }),
+    }, { eligibility_flags: { 活動登錄: { default: false } } });
+    // 未登錄:加碼規則資格未符合 → 只有 base 1%
+    expect(recommend(j, { amount: 1000, flags: { 活動登錄: false } }, {}).best.result.cashback).toBe(10);
+    // 登錄:加碼生效 → base 10 + bonus 50
+    expect(recommend(j, { amount: 1000, flags: { 活動登錄: true } }, {}).best.result.cashback).toBe(60);
+  });
+
+  it('反推國別加碼:推薦會列出「去日本消費」並算進回饋', () => {
+    const j = db({
+      base: rule({ match: { is_overseas: false }, reward: cash(0.005) }),
+      jp:   rule({ match: { countries: ['日本'], is_overseas: true }, reward: cash(0.025) }),
+    });
+    const r = recommend(j, { amount: 1000 }, {});
+    const jpOpt = r.options.find((o) => o.how.includes('日本'));
+    expect(jpOpt).toBeTruthy();          // 日本加碼有被列舉(過去因 triggerTx 漏 countries 而消失)
+    expect(jpOpt.result.cashback).toBe(25); // 2.5% 命中(國別隱含海外)
+  });
 });
 
 describe('multi-period engine (Freedom Flex: 輪動 5% + 每季 $1,500 + 需登錄)', () => {
@@ -572,6 +594,11 @@ describe('消費國別 countries(travel/雙幣:依 tx.country 命中)', () => {
     expect(simulate(j, { amount: 1000, country: '日本' }).cashback).toBe(25);
     expect(simulate(j, { amount: 1000, country: '韓國' }).cashback).toBe(0);
     expect(simulate(j, { amount: 1000 }).cashback).toBe(0); // 未給國別 → 不命中
+  });
+  it('未命中的規則列入 unfired(試算可發現性)', () => {
+    const r = simulate(j, { amount: 1000 }); // 沒給國別 → 日本規則未觸發
+    expect(r.fired.length).toBe(0);
+    expect(r.unfired.map((u) => u.id)).toContain('jp');
   });
 });
 
