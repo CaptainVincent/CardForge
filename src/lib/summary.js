@@ -66,7 +66,8 @@ export function rewardSummary(d = {}) {
   } else if (d.tierMode === 'distinct_count' && d.tiers?.length) {
     const counts = d.tiers.map((t) => t.minSpend).filter((v) => v != null);
     const rates = d.tiers.map((t) => t.rate).filter((r) => r != null);
-    value = `品牌數${counts.length ? ` ${Math.min(...counts)}–${Math.max(...counts)}家` : ''} +${rates.length ? `${Math.min(...rates)}~${Math.max(...rates)}` : '?'}%`;
+    const unit = d.countLabel?.trim() || '計數';
+    value = `${unit}${counts.length ? ` ${Math.min(...counts)}–${Math.max(...counts)}` : ''} +${rates.length ? `${Math.min(...rates)}~${Math.max(...rates)}` : '?'}%`;
   } else if ((d.tierMode === 'spend' || d.tierMode === 'marginal') && d.tiers?.length) {
     const rates = d.tiers.map((t) => t.rate).filter((r) => r != null);
     const word = d.tierMode === 'marginal' ? '累進' : '級距';

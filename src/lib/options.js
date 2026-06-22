@@ -91,7 +91,7 @@ export const TIER_MODES = [
   { value: 'flat', label: '單一比率' },
   { value: 'spend', label: '消費級距' },
   { value: 'marginal', label: '超額累進' },
-  { value: 'distinct_count', label: '品牌數級距' },
+  { value: 'distinct_count', label: '計數級距' },
 ];
 
 // Generic predicate operators — the "command block" that lets users author

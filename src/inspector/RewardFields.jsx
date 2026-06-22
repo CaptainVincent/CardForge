@@ -31,8 +31,11 @@ export default function RewardFields({ data, update }) {
         {method === 'percentage' && (
           <>
             <SegmentedControl label="比率模式" value={tierMode} options={TIER_MODES} onChange={(v) => update({ tierMode: v })} />
+            {tierMode === 'distinct_count' && (
+              <TextField label="計數名稱（由你定義,如:不同品牌數 / 天數 / 筆數）" value={data.countLabel} placeholder="例:不同品牌數" onChange={(v) => update({ countLabel: v })} />
+            )}
             {tierMode === 'spend' || tierMode === 'marginal' || tierMode === 'distinct_count' ? (
-              <TierEditor mode={tierMode} tiers={data.tiers || []} onChange={(v) => update({ tiers: v })} />
+              <TierEditor mode={tierMode} unit={data.countLabel} tiers={data.tiers || []} onChange={(v) => update({ tiers: v })} />
             ) : (
               <NumberField label="回饋率 (%)" step="0.1" value={data.rate} placeholder="3.5" onChange={(v) => update({ rate: v })} />
             )}

@@ -8,9 +8,9 @@ import { parseNumInput } from '../../lib/options';
 const LABELS = {
   spend: '消費級距（累計達標套用，取最高符合）',
   marginal: '超額累進（每段金額各套自己的費率）',
-  distinct_count: '品牌數級距（當期不同品牌達 N 家 → 加碼）',
+  distinct_count: '計數級距（當期計數達 N → 加碼，取最高符合）',
 };
-export default function TierEditor({ tiers = [], onChange, mode = 'spend' }) {
+export default function TierEditor({ tiers = [], onChange, mode = 'spend', unit = '' }) {
   const update = (i, patch) => onChange(tiers.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
   const add = () => onChange([...tiers, { minSpend: null, rate: null }]);
   const remove = (i) => onChange(tiers.filter((_, idx) => idx !== i));
@@ -28,11 +28,11 @@ export default function TierEditor({ tiers = [], onChange, mode = 'spend' }) {
               type="number"
               step={count ? '1' : undefined}
               className="cf-input !mt-0"
-              placeholder={count ? '家數' : '金額'}
+              placeholder={count ? (unit || '計數') : '金額'}
               value={t.minSpend ?? ''}
               onChange={(e) => update(i, { minSpend: parseNumInput(e.target.value) })}
             />
-            {count && <span className="text-[11px] text-[var(--cf-text-faint)]">家</span>}
+            {count && <span className="text-[11px] text-[var(--cf-text-faint)]">{unit || '個'}</span>}
             <span className="text-[11px] text-[var(--cf-text-faint)]">→</span>
             <input
               type="number"

@@ -234,7 +234,7 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
                     })}
                     {fields.hasDistinctCount && (
                       <div className="flex items-center justify-between gap-2">
-                        <span className="min-w-0 flex-1 truncate text-xs text-[var(--cf-text-dim)]">當期不同品牌數（踩點）</span>
+                        <span className="min-w-0 flex-1 truncate text-xs text-[var(--cf-text-dim)]">當期{fields.distinctCountLabel || '計數'}（計數級距）</span>
                         <input
                           type="number" min="0" step="1"
                           className="cf-input !mt-0 !w-20 flex-none"

@@ -161,6 +161,7 @@ function importOneCard(json, nodes, edges, yBase) {
                 rate: parseFloat(((b.rate || 0) * 100).toFixed(6)),
               }))
             : [],
+          countLabel: rule.tiers?.count_label || '',
           rewardType: r.type || 'cashback',
           pointName: r.point_name || '',
           layer: rule.stacking?.layer || 'base',

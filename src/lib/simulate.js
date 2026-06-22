@@ -480,9 +480,10 @@ export function deriveTxFieldsFromJson(json) {
     hasMcc: ms.some((m) => m.mcc?.length),
     customFields: uniq(ms.flatMap((m) => (m.custom || []).map((p) => p.field)).filter(Boolean)),
     hasGateOrTiers: rules.some((r) => r.tiers?.mode === 'spend' || r.eligibility?.min_spending || r.eligibility?.pool),
-    // 踩點(品牌數級距):分析需提供「當期不同品牌數」情境;maxBrandCount = 最高檔門檻。
+    // 計數級距(踩點等):分析需提供「當期計數」情境;label = 該計數的名稱(品牌數/天數…)。
     hasDistinctCount: rules.some((r) => r.tiers?.mode === 'distinct_count'),
-    maxBrandCount: Math.max(0, ...rules.flatMap((r) => (r.tiers?.mode === 'distinct_count' ? (r.tiers.bands || []).map((b) => b.min_count || 0) : [0]))),
+    maxDistinctCount: Math.max(0, ...rules.flatMap((r) => (r.tiers?.mode === 'distinct_count' ? (r.tiers.bands || []).map((b) => b.min_count || 0) : [0]))),
+    distinctCountLabel: rules.find((r) => r.tiers?.mode === 'distinct_count')?.tiers?.count_label || '',
     // Named eligibility flags (新戶/登錄…), with each flag's declared state kept
     // as the tri-state it was authored in (true 符合 / false 未符合 / undefined
     // 未選). Analysis shows this READ-ONLY — the resolved value (未選→未符合) is
@@ -508,7 +509,8 @@ export function mergeFields(list) {
     customFields: uniq(list.flatMap((f) => f.customFields)),
     hasGateOrTiers: list.some((f) => f.hasGateOrTiers),
     hasDistinctCount: list.some((f) => f.hasDistinctCount),
-    maxBrandCount: Math.max(0, ...list.map((f) => f.maxBrandCount || 0)),
+    maxDistinctCount: Math.max(0, ...list.map((f) => f.maxDistinctCount || 0)),
+    distinctCountLabel: list.map((f) => f.distinctCountLabel).find(Boolean) || '',
     eligibilityFlags: Object.values(
       Object.fromEntries(list.flatMap((f) => f.eligibilityFlags || []).map((e) => [e.name, e]))
     ),

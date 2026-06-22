@@ -256,7 +256,9 @@ export function exportCard(cardNode, nodes, edges) {
           rd.method === 'percentage' && (rd.tierMode === 'spend' || rd.tierMode === 'marginal' || rd.tierMode === 'distinct_count') && rd.tiers?.length
             ? {
                 mode: rd.tierMode,
-                // distinct_count 的門檻是「家數」→ min_count;金額級距 → min_amount。
+                // distinct_count 的門檻是「計數」→ min_count;金額級距 → min_amount。
+                // count_label = 這個計數代表什麼(品牌數/天數/筆數…),純顯示用。
+                ...(rd.tierMode === 'distinct_count' && rd.countLabel ? { count_label: rd.countLabel } : {}),
                 bands: rd.tiers
                   .filter((t) => t.minSpend != null || t.rate != null)
                   .map((t) => (rd.tierMode === 'distinct_count'
