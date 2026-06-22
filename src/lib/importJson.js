@@ -22,10 +22,25 @@ const importCustom = (list) =>
     value: Array.isArray(p.value) ? p.value.join(',') : (p.value == null ? '' : String(p.value)),
   }));
 
+// 舊資料相容:退役的 channel 值搬到正確的軸(這些值已不在 CHANNEL_OPTIONS)——
+//   overseas → is_overseas:true;mobile_pay / contactless → payment_methods。
+// 讓任何曾用「行動支付在通路」表達的舊卡/舊畫布匯入後語意正確、不丟失。
+const LEGACY_CH_TO_PAY = new Set(['mobile_pay', 'contactless']);
+const migrateMatch = (m = {}) => {
+  const ch = m.channels || [];
+  if (!ch.some((c) => c === 'overseas' || LEGACY_CH_TO_PAY.has(c))) return m;
+  const out = { ...m, channels: ch.filter((c) => c !== 'overseas' && !LEGACY_CH_TO_PAY.has(c)) };
+  if (ch.includes('overseas') && out.is_overseas == null) out.is_overseas = true;
+  const moved = ch.filter((c) => LEGACY_CH_TO_PAY.has(c));
+  if (moved.length) out.payment_methods = [...new Set([...(m.payment_methods || []), ...moved])];
+  return out;
+};
+
 // JSON match object → canvas node data (shared by condition / exclude / 任一
 // alternative). List fields driven by MATCH_LIST_FIELDS so the three sites can't
 // drift; scalars + custom handled explicitly. `extra` adds e.g. { negate:true }.
-const jsonMatchToNodeData = (m = {}, extra = {}) => {
+const jsonMatchToNodeData = (raw = {}, extra = {}) => {
+  const m = migrateMatch(raw);
   const d = { isOverseas: m.is_overseas ?? null, minAmountTwd: m.min_amount_twd || null, custom: importCustom(m.custom), ...extra };
   for (const f of MATCH_LIST_FIELDS) d[f.node] = m[f.json] || [];
   return d;
@@ -34,7 +49,8 @@ const jsonMatchToNodeData = (m = {}, extra = {}) => {
 // Fingerprint grouping rules with identical match → one shared condition node.
 // Same field set as before (min_amount_twd intentionally excluded, preserving
 // prior grouping); only compared within a single import run.
-const matchFingerprint = (m = {}) => {
+const matchFingerprint = (raw = {}) => {
+  const m = migrateMatch(raw);
   const parts = [];
   if (m.is_overseas === true) parts.push('overseas');
   if (m.is_overseas === false) parts.push('domestic');

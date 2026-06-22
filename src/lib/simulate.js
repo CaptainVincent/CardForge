@@ -1,5 +1,10 @@
 // Reward engine — evaluates an exported rule set against one transaction.
 // This is the runtime that makes the rules executable (records → 回饋金額).
+//
+// Sole dependency is the PAYMENT taxonomy (pure data, no further imports) so the
+// engine still loads in raw Node for validate.mjs / cards:check. It powers the
+// payment hierarchy: a rule requiring「行動支付」matches any member (Apple Pay…).
+import { PAYMENT_GROUPS } from './options.js';
 
 // ── Multi-period support ──────────────────────────────────────────────────
 // The whole multi-period capability is just two derived facts: which calendar
@@ -128,7 +133,12 @@ function matchClause(m, tx) {
   if (m.mcc?.length && !mccMatch(m.mcc, tx.mcc)) return false;
   if (m.merchants?.length && !m.merchants.includes(tx.merchant)) return false;
   if (m.countries?.length && !m.countries.includes(tx.country)) return false;
-  if (m.payment_methods?.length && !m.payment_methods.includes(tx.paymentMethod)) return false;
+  if (m.payment_methods?.length) {
+    const pm = tx.paymentMethod;
+    // 階層比對:交易用 Apple Pay → 同時命中「Apple Pay」與其群組「行動支付/感應」。
+    const groups = (pm && PAYMENT_GROUPS[pm]) || [];
+    if (!pm || !m.payment_methods.some((req) => req === pm || groups.includes(req))) return false;
+  }
   if (m.min_amount_twd && Number(tx.amount) < m.min_amount_twd) return false;
   if (m.day_of_week?.length) { const wd = weekdayOf(tx); if (!wd || !m.day_of_week.includes(wd)) return false; }
   if (m.day_of_month?.length) { const dom = domOf(tx); if (dom == null || !m.day_of_month.map(Number).includes(dom)) return false; }

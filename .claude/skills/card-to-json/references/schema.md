@@ -128,7 +128,7 @@
 "match": {
   "is_overseas": true,
   "currencies": ["JPY", "USD"],
-  "channels": ["online", "mobile_pay", "contactless", "overseas"],
+  "channels": ["online"],
   "categories": ["dining", "supermarket", "convenience", "gas", "travel", "streaming", "department", "drugstore"],
   "mcc": ["5812", "5811-5814"],
   "merchants": ["7-11", "全家", "星巴克"],
@@ -149,12 +149,16 @@
   兩者皆為**交易日期屬性**——引擎由交易 `date` 自動推算星期/日(單筆試算可顯式給 `dayOfWeek`/
   `dayOfMonth` 情境)。卡友日「週五夢時代+8%」「每月1號家樂福」等,用這兩個欄位、做成一條 match
   帶日期條件的**靜態規則**(不是動態情境)。贈品/折價/買一送一非%回饋 → 記 note。
-- `channels`:`online`(網購)、`mobile_pay`(行動支付)、`contactless`(感應)、`overseas`(海外)。
+- `channels`(**在哪刷,場景/管道**):`online`(網購),或自訂 `實體門市`/`官網` 等。**只描述場景**;
+  「海外」用 `is_overseas`、「怎麼付」用 `payment_methods`,不要塞進 channels(退役值 `overseas`/
+  `mobile_pay`/`contactless` 匯入會自動搬到對的軸)。
 - `categories`:`dining`(餐飲)、`supermarket`(超市)、`convenience`(超商)、`gas`(加油)、
   `travel`(旅遊)、`streaming`(影音)、`department`(百貨)、`drugstore`(藥妝)。
-- `payment_methods`:`apple_pay`、`google_pay`、`samsung_pay`、`line_pay`、`jkopay`(街口)、
-  `pxpay`(全支付)、`easywallet`(悠遊付)、`ipass_money`(一卡通MONEY)、`taiwan_pay`(台灣Pay)、
-  `pi_wallet`(Pi錢包)、`easycard`(悠遊卡)、`ipass`(一卡通)。
+- `payment_methods`(**怎麼付,唯一軸含階層**):群組(粗)`mobile_pay`(行動支付)、`contactless`(感應);
+  具名(細)`apple_pay`、`google_pay`、`samsung_pay`、`line_pay`、`jkopay`(街口)、`pxpay`(全支付)、
+  `easywallet`(悠遊付)、`ipass_money`(一卡通MONEY)、`taiwan_pay`(台灣Pay)、`pi_wallet`(Pi錢包)、
+  `easycard`(悠遊卡)、`ipass`(一卡通)。**要求群組會命中旗下任一成員**(Apple Pay ∈ 行動支付):
+  「綁定行動支付」→ `["mobile_pay"]` 即可,不必列舉各 App;「限 Apple Pay」→ `["apple_pay"]`。
 - `currencies`:ISO 幣別碼(`JPY`/`USD`/`EUR`…);`is_overseas` 為布林(true=海外、false=國內)。
 - `countries`(**消費國別/地區**):自由字串陣列(`["日本","韓國"]`),交易的 `country` 命中任一即算。
   用於 travel / 雙幣卡的「日本 X% / 韓國 Y%」這種**依消費地**的加碼(`is_overseas` 只分國內外,分不出國家)。

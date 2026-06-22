@@ -21,7 +21,7 @@ export default function RewardFields({ data, update }) {
   return (
     <>
       <label className="flex cursor-pointer items-center justify-between rounded-lg border border-[var(--cf-border)] bg-[var(--cf-surface)] px-3 py-2">
-        <span className="text-xs font-medium text-[var(--cf-text-dim)]">啟用此規則（納入試算）<InfoHint text="關閉=保留規則但不參與試算(限時/新戶促銷:存著存查,不灌爆日常回饋估算)" /></span>
+        <span className="text-xs font-medium text-[var(--cf-text-dim)]">啟用此規則（納入試算）<InfoHint text="關閉=保留規則但不參與試算(如限時/名額/促銷活動:存著備查,不灌爆日常回饋估算)" /></span>
         <input type="checkbox" checked={active} onChange={(e) => update({ isActive: e.target.checked })} />
       </label>
 
@@ -82,7 +82,7 @@ export default function RewardFields({ data, update }) {
           value={data.settlement || 'recurring'}
           options={[{ value: 'recurring', label: '逐筆回饋' }, { value: 'once', label: '里程碑（達標給一次）' }]}
           onChange={(v) => update({ settlement: v })}
-          hint="逐筆回饋=每筆消費都算(可配上限累積);里程碑=完成條件發一筆就結束。限時/新戶活動請用『啟用開關＋整段總額上限』表達,不是這裡。"
+          hint="里程碑=達標發一筆就結束(首刷/滿額/推薦禮…,不限新戶)。百分比+上限的限時促銷不算里程碑,改用『啟用開關＋整段總額上限』。"
         />
 
         <div>
@@ -107,11 +107,11 @@ export default function RewardFields({ data, update }) {
         </div>
 
         <NumberField
-          label="首刷期限(開卡後 N 天,選填)"
+          label="開卡後 N 天內有效(選填)"
           step="1"
           value={data.fromOpeningDays ?? ''}
           placeholder="例:90(核卡 90 天內)"
-          hint="新戶首刷禮:檔期 = 持卡開始日起算 N 天(在卡片設定「持卡開始日」)。常配「門檻(總額)+ 里程碑(達標給一次)」。"
+          hint="從卡片「持卡開始日」起算的時間窗。常見:新戶首刷禮(但任何開卡起算的限時皆可)。"
           onChange={(v) => update({ fromOpeningDays: v })}
         />
 

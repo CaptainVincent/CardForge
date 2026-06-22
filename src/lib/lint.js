@@ -6,6 +6,7 @@ import { edgeIssue } from './connectionRules';
 import { exportCard } from './exportJson';
 import { nodeIssues } from './validate';
 import { forwardReachable } from './graph.js';
+import { MATCH_LIST_FIELDS } from './matchFields';
 
 export function lintGraph(nodes, edges, pointPrograms = {}) {
   const issues = [];
@@ -64,7 +65,6 @@ export function lintGraph(nodes, edges, pointPrograms = {}) {
   // lives on the CONDITION nodes — so we map each conflicting value back to the
   // condition nodes in that card's subtree that mention it (relatedIds). Clicking
   // then frames+highlights exactly the nodes to reconcile (no single fix node).
-  const DATA_FIELD = { currencies: 'currencies', channels: 'channels', categories: 'categories', payment_methods: 'paymentMethods', merchants: 'merchants' };
   for (const card of cards) {
     const cj = exportCard(card, nodes, edges);
     if (!cj) continue;
@@ -76,9 +76,11 @@ export function lintGraph(nodes, edges, pointPrograms = {}) {
       const m = rule.match || {};
       const ex = m.exclude;
       if (!ex) continue;
-      for (const f of ['currencies', 'channels', 'categories', 'payment_methods', 'merchants']) {
+      // 「同時要求又排除同值」永不命中 — 涵蓋所有清單型 match 欄位(由單一來源
+      // MATCH_LIST_FIELDS 推導,含 countries / mcc / 卡友日,過去寫死 5 欄漏接)。
+      for (const { json: f, node: nodeKey } of MATCH_LIST_FIELDS) {
         const overlap = (m[f] || []).filter((x) => (ex[f] || []).includes(x));
-        if (overlap.length) issues.push({ id: `imposs-${rule.id}-${f}`, severity: 'error', message: `規則「${rule.name}」同時要求並排除「${overlap.join('/')}」,永不命中`, relatedIds: condsWith(DATA_FIELD[f], overlap) });
+        if (overlap.length) issues.push({ id: `imposs-${rule.id}-${f}`, severity: 'error', message: `規則「${rule.name}」同時要求並排除「${overlap.join('/')}」,永不命中`, relatedIds: condsWith(nodeKey, overlap) });
       }
       if (m.is_overseas != null && ex.is_overseas === m.is_overseas) {
         issues.push({ id: `imposs-${rule.id}-region`, severity: 'error', message: `規則「${rule.name}」同時要求並排除「${m.is_overseas ? '海外' : '國內'}」,永不命中`, relatedIds: condsRegion(m.is_overseas) });

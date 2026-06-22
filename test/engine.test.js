@@ -101,6 +101,19 @@ describe('match axis', () => {
     expect(simulate(j, { amount: 1000, merchant: '萊爾富' }).cashback).toBe(0);
   });
 
+  it('支付階層:要求群組「行動支付」→ 刷旗下任一成員(Apple Pay)即命中', () => {
+    const j = db({
+      base: rule({ reward: cash(0.01) }),
+      mp: rule({ match: { payment_methods: ['mobile_pay'] }, reward: cash(0.05), stacking: { layer: 'bonus' } }),
+    });
+    expect(simulate(j, { amount: 1000, paymentMethod: 'apple_pay' }).cashback).toBe(60); // base 10 + 行動支付 50
+    expect(simulate(j, { amount: 1000, paymentMethod: 'easycard' }).cashback).toBe(10);  // 悠遊卡屬感應、非行動支付
+    // 反向:要求具名 Apple Pay,只刷籠統「行動支付」不夠精確 → 不命中
+    const j2 = db({ ap: rule({ match: { payment_methods: ['apple_pay'] }, reward: cash(0.05) }) });
+    expect(simulate(j2, { amount: 1000, paymentMethod: 'apple_pay' }).cashback).toBe(50);
+    expect(simulate(j2, { amount: 1000, paymentMethod: 'mobile_pay' }).cashback).toBe(0);
+  });
+
   it('exclude (NOT) disqualifies matching txns', () => {
     const j = db({ r: rule({ match: { categories: ['dining'], exclude: { channels: ['online'] } }, reward: cash(0.05) }) });
     expect(simulate(j, { amount: 1000, categories: ['dining'] }).cashback).toBe(50);
@@ -151,8 +164,8 @@ describe('round-trip (import → export preserves every construct)', () => {
   it('pooled caps share one pool id across member rules', () => {
     const src = { cards: [{ card: 'P', account: 'Liabilities:CreditCard:P', rounding: 'floor', fx_fee_rate: 1.5,
       rules: {
-        a: { id: 'a', name: 'a', card: 'P', account: 'Liabilities:CreditCard:P', match: { channels: ['mobile_pay'] }, reward: cash(0.05), tiers: { mode: 'flat' }, limits: { caps: [{ metric: 'reward', window: 'period', max: 300, pool: 'pp' }] }, stacking: { layer: 'bonus', group: 'p' } },
-        b: { id: 'b', name: 'b', card: 'P', account: 'Liabilities:CreditCard:P', match: { channels: ['contactless'] }, reward: cash(0.05), tiers: { mode: 'flat' }, limits: { caps: [{ metric: 'reward', window: 'period', max: 300, pool: 'pp' }] }, stacking: { layer: 'bonus', group: 'p' } },
+        a: { id: 'a', name: 'a', card: 'P', account: 'Liabilities:CreditCard:P', match: { channels: ['online'] }, reward: cash(0.05), tiers: { mode: 'flat' }, limits: { caps: [{ metric: 'reward', window: 'period', max: 300, pool: 'pp' }] }, stacking: { layer: 'bonus', group: 'p' } },
+        b: { id: 'b', name: 'b', card: 'P', account: 'Liabilities:CreditCard:P', match: { categories: ['dining'] }, reward: cash(0.05), tiers: { mode: 'flat' }, limits: { caps: [{ metric: 'reward', window: 'period', max: 300, pool: 'pp' }] }, stacking: { layer: 'bonus', group: 'p' } },
       },
       limit_pools: { pp: { period: { cycle: 'monthly' }, members: ['a', 'b'] } } }] };
     const { nodes, edges } = importFromJson(src);
@@ -229,8 +242,8 @@ describe('eligibility flags (資格:新戶/登錄)', () => {
       card: 'E', account: 'Liabilities:CreditCard:E', rounding: 'none', fx_fee_rate: 1.5,
       eligibility_flags: { 新戶: { default: false } },
       rules: {
-        a: { id: 'a', name: 'a', card: 'E', account: 'Liabilities:CreditCard:E', match: { channels: ['mobile_pay'] }, reward: cash(0.2), tiers: { mode: 'flat' }, limits: {}, eligibility: { flags: ['新戶'] }, stacking: { layer: 'bonus', group: 'e' } },
-        b: { id: 'b', name: 'b', card: 'E', account: 'Liabilities:CreditCard:E', match: { channels: ['contactless'] }, reward: cash(0.1), tiers: { mode: 'flat' }, limits: {}, eligibility: { flags: ['新戶'] }, stacking: { layer: 'bonus', group: 'e' } },
+        a: { id: 'a', name: 'a', card: 'E', account: 'Liabilities:CreditCard:E', match: { channels: ['online'] }, reward: cash(0.2), tiers: { mode: 'flat' }, limits: {}, eligibility: { flags: ['新戶'] }, stacking: { layer: 'bonus', group: 'e' } },
+        b: { id: 'b', name: 'b', card: 'E', account: 'Liabilities:CreditCard:E', match: { categories: ['dining'] }, reward: cash(0.1), tiers: { mode: 'flat' }, limits: {}, eligibility: { flags: ['新戶'] }, stacking: { layer: 'bonus', group: 'e' } },
       },
     }] };
     const { nodes, edges } = importFromJson(src);
@@ -242,8 +255,8 @@ describe('eligibility flags (資格:新戶/登錄)', () => {
     expect(out.eligibility_flags['新戶'].default).toBe(false);
     expect(Object.values(out.rules).every((r) => r.eligibility?.flags?.includes('新戶'))).toBe(true);
     // both rules gated off by default; both unlock together when the flag is set
-    expect(simulate(out, { amount: 1000, channels: ['mobile_pay'] }).cashback).toBe(0);
-    expect(simulate(out, { amount: 1000, channels: ['mobile_pay'], flags: { 新戶: true } }).cashback).toBe(200);
+    expect(simulate(out, { amount: 1000, channels: ['online'] }).cashback).toBe(0);
+    expect(simulate(out, { amount: 1000, channels: ['online'], flags: { 新戶: true } }).cashback).toBe(200);
   });
 
   it('migrates legacy requires_activation → 活動登錄 flag (default 未選 → 待使用者選)', () => {
@@ -340,13 +353,13 @@ describe('compareCards / usedPointNames / multi-card round-trip', () => {
 });
 
 describe('recommend (reverse-derive best payment)', () => {
-  it('suggests the bonus channel over the base rate', () => {
+  it('suggests the bonus payment method over the base rate', () => {
     const j = db({
       base: rule({ reward: cash(0.01) }),
-      pay: rule({ match: { channels: ['mobile_pay'] }, reward: cash(0.05), stacking: { layer: 'bonus' } }),
+      pay: rule({ match: { payment_methods: ['mobile_pay'] }, reward: cash(0.05), stacking: { layer: 'bonus' } }),
     });
     const best = recommend(j, { amount: 1000 }, {}).best;
-    expect(best.how.join(' ')).toMatch(/mobile_pay|行動支付|Pay/i);
+    expect(best.how.join(' ')).toMatch(/行動支付|mobile_pay|Pay/i);
     expect(best.result.cashback).toBe(60); // base 10 + bonus 50 stack
   });
 
@@ -361,15 +374,18 @@ describe('recommend (reverse-derive best payment)', () => {
     expect(recommend(j, { amount: 1000, flags: { 活動登錄: true } }, {}).best.result.cashback).toBe(60);
   });
 
-  it('反推國別加碼:推薦會列出「去日本消費」並算進回饋', () => {
+  it('給定情境才納入:不發明「去日本/出國」這種不可比的跨情境選項', () => {
     const j = db({
       base: rule({ match: { is_overseas: false }, reward: cash(0.005) }),
       jp:   rule({ match: { countries: ['日本'], is_overseas: true }, reward: cash(0.025) }),
     });
-    const r = recommend(j, { amount: 1000 }, {});
-    const jpOpt = r.options.find((o) => o.how.includes('日本'));
-    expect(jpOpt).toBeTruthy();          // 日本加碼有被列舉(過去因 triggerTx 漏 countries 而消失)
-    expect(jpOpt.result.cashback).toBe(25); // 2.5% 命中(國別隱含海外)
+    // 未指定國別/海外 → 預設國內,不發明日本選項;只給國內基準 0.5%
+    const dom = recommend(j, { amount: 1000 }, {});
+    expect(dom.options.some((o) => o.tx.country === '日本')).toBe(false);
+    expect(dom.best.result.cashback).toBe(5);
+    // 明確指定在日本(海外)→ 日本加碼才納入
+    const jp = recommend(j, { amount: 1000, isOverseas: true, country: '日本' }, {});
+    expect(jp.best.result.cashback).toBe(25);
   });
 });
 

@@ -28,16 +28,15 @@ function triggerTx(rule, fixed) {
   const tx = {
     amount: Number(fixed.amount) || 0,
     periodSpend: fixed.periodSpend,
-    isOverseas: fixed.isOverseas ?? null,
+    isOverseas: fixed.isOverseas ?? false, // 推薦預設國內;不假設「出國」這種給定情境
     hasFee: fixed.hasFee,
     currency: fixed.currency || null,
+    mcc: fixed.mcc || null,
     channels: fixed.channels?.length ? [...fixed.channels] : [],
     categories: fixed.categories?.length ? [...fixed.categories] : [],
     merchant: fixed.merchant || null,
     paymentMethod: fixed.paymentMethod || null,
     custom: { ...(fixed.custom || {}) },
-    // 情境上下文(what-if 旋鈕):資格符合與否、計數、國別、日期。原樣帶過,
-    // triggerTx 不改寫——它只反推「怎麼刷能命中 match」,資格由使用者情境決定。
     country: fixed.country || null,
     date: fixed.date,
     flags: fixed.flags || {},
@@ -46,88 +45,47 @@ function triggerTx(rule, fixed) {
   const how = [];
   let note = null;
 
-  // 國別加碼(日本/韓國…):反推「去該國消費」。先設好(隱含海外),讓後面
-  // is_overseas 分支不再重複標「海外」;已固定到別國則此規則不適用。
-  if (m.countries?.length) {
-    if (tx.country && !m.countries.includes(tx.country)) return null;
-    if (!tx.country) { tx.country = m.countries[0]; how.push(m.countries[0]); }
-    if (tx.isOverseas == null) tx.isOverseas = true;
-  }
-  if (m.is_overseas != null) {
-    if (tx.isOverseas != null && tx.isOverseas !== m.is_overseas) return null;
-    if (tx.isOverseas == null) { tx.isOverseas = m.is_overseas; how.push(m.is_overseas ? '海外' : '國內'); }
-  }
-  if (m.currencies?.length) {
-    if (tx.currency && !m.currencies.includes(tx.currency)) return null;
-    if (!tx.currency) { tx.currency = m.currencies[0]; how.push(m.currencies[0]); }
-  }
-  if (m.channels?.length && !tx.channels.some((c) => m.channels.includes(c))) {
-    if (fixed.channels?.length) return null; // fixed to channels that exclude the requirement
-    tx.channels.push(m.channels[0]); how.push(labelOf(CHANNEL_OPTIONS, m.channels[0]));
-  }
-  if (m.categories?.length && !tx.categories.some((c) => m.categories.includes(c))) {
-    if (fixed.categories?.length) return null;
-    tx.categories.push(m.categories[0]); how.push(labelOf(CATEGORY_OPTIONS, m.categories[0]));
-  }
-  if (m.merchants?.length) {
-    if (tx.merchant && !m.merchants.includes(tx.merchant)) return null;
-    if (!tx.merchant) { tx.merchant = m.merchants[0]; how.push(m.merchants[0]); }
-  }
+  // 給定情境(買什麼/在哪買/何時買:海外/國別/幣別/類別/特店/MCC/日期)—— 推薦
+  // 「不發明」,只沿用使用者已指定的;不符即此規則不屬當前情境,不列為選項。否則
+  // 會把不可比的情境拿來排名(例:國內 0.5% vs 海外 2.5%,根本不是二選一)。
+  if (m.is_overseas != null && tx.isOverseas !== m.is_overseas) return null;
+  if (m.countries?.length && !(tx.country && m.countries.includes(tx.country))) return null;
+  if (m.currencies?.length && !(tx.currency && m.currencies.includes(tx.currency))) return null;
+  if (m.categories?.length && !tx.categories.some((c) => m.categories.includes(c))) return null;
+  if (m.merchants?.length && !(tx.merchant && m.merchants.includes(tx.merchant))) return null;
+  if (m.mcc?.length && !tx.mcc) return null; // 有 MCC 才交給引擎判定(含級距);不發明
+  for (const p of m.custom || []) if (!customHolds(p, tx.custom)) return null;
+
+  // 可控(怎麼刷:付款方式 / 通路)—— 這才是推薦真正能「建議」的選擇。
   if (m.payment_methods?.length) {
     if (tx.paymentMethod && !m.payment_methods.includes(tx.paymentMethod)) return null;
     if (!tx.paymentMethod) { tx.paymentMethod = m.payment_methods[0]; how.push(labelOf(PM_OPTIONS, m.payment_methods[0])); }
   }
+  if (m.channels?.length && !tx.channels.some((c) => m.channels.includes(c))) {
+    if (fixed.channels?.length) return null;
+    tx.channels.push(m.channels[0]); how.push(labelOf(CHANNEL_OPTIONS, m.channels[0]));
+  }
   if (m.min_amount_twd && tx.amount < m.min_amount_twd) note = `需單筆滿 $${m.min_amount_twd.toLocaleString()}`;
 
-  for (const p of m.custom || []) {
-    const cur = tx.custom[p.field];
-    if (p.op === 'is') {
-      if (cur != null && String(cur) !== String(p.value)) return null;
-      if (cur == null) { tx.custom[p.field] = p.value; how.push(`${p.field}=${p.value}`); }
-    } else if (p.op === 'in') {
-      const arr = Array.isArray(p.value) ? p.value : [p.value];
-      if (cur != null && !arr.map(String).includes(String(cur))) return null;
-      if (cur == null) { tx.custom[p.field] = arr[0]; how.push(`${p.field}=${arr[0]}`); }
-    } else {
-      note = (note ? note + '；' : '') + `需 ${p.field} ${p.op} ${p.value}`;
-    }
-  }
-
-  // Cross-field OR groups (任一): each group needs ≥1 alternative satisfied,
-  // honoring the user's fixed fields. Pick the first compatible alternative.
+  // 任一(OR):某組需有一替代成立。給定情境的替代必須已由 fixed 滿足;只用可控的
+  // (付款/通路)自動補。都不成立 → 此規則不屬當前情境。
   for (const group of m.or_groups || []) {
-    const holds = (s) =>
+    const givenOk = (s) =>
       (s.is_overseas == null || tx.isOverseas === s.is_overseas) &&
       (!s.currencies?.length || (tx.currency && s.currencies.includes(tx.currency))) &&
-      (!s.channels?.length || tx.channels.some((c) => s.channels.includes(c))) &&
       (!s.categories?.length || tx.categories.some((c) => s.categories.includes(c))) &&
       (!s.merchants?.length || (tx.merchant && s.merchants.includes(tx.merchant))) &&
-      (!s.payment_methods?.length || (tx.paymentMethod && s.payment_methods.includes(tx.paymentMethod))) &&
+      (!s.countries?.length || (tx.country && s.countries.includes(tx.country))) &&
+      (!s.mcc?.length || !!tx.mcc) &&
       (s.custom || []).every((c) => customHolds(c, tx.custom));
+    const holds = (s) => givenOk(s)
+      && (!s.channels?.length || tx.channels.some((c) => s.channels.includes(c)))
+      && (!s.payment_methods?.length || (tx.paymentMethod && s.payment_methods.includes(tx.paymentMethod)));
     if (group.some(holds)) continue;
-
-    const conflictsFixed = (s) =>
-      (s.is_overseas != null && fixed.isOverseas != null && fixed.isOverseas !== s.is_overseas) ||
-      (s.currencies?.length && fixed.currency && !s.currencies.includes(fixed.currency)) ||
-      (s.channels?.length && fixed.channels?.length && !tx.channels.some((c) => s.channels.includes(c))) ||
-      (s.categories?.length && fixed.categories?.length && !tx.categories.some((c) => s.categories.includes(c))) ||
-      (s.merchants?.length && fixed.merchant && !s.merchants.includes(fixed.merchant)) ||
-      (s.payment_methods?.length && fixed.paymentMethod && !s.payment_methods.includes(fixed.paymentMethod)) ||
-      (s.custom || []).some((c) => fixed.custom?.[c.field] != null && !customHolds(c, fixed.custom));
-
-    const sub = group.find((s) => !conflictsFixed(s));
-    if (!sub) return null; // fixed fields exclude every alternative
-    if (sub.is_overseas != null && tx.isOverseas == null) { tx.isOverseas = sub.is_overseas; how.push(sub.is_overseas ? '海外' : '國內'); }
-    if (sub.currencies?.length && !tx.currency) { tx.currency = sub.currencies[0]; how.push(sub.currencies[0]); }
+    const sub = group.find(givenOk); // 給定已滿足、只差可控的替代
+    if (!sub) return null;
     if (sub.channels?.length && !tx.channels.some((c) => sub.channels.includes(c))) { tx.channels.push(sub.channels[0]); how.push(labelOf(CHANNEL_OPTIONS, sub.channels[0])); }
-    if (sub.categories?.length && !tx.categories.some((c) => sub.categories.includes(c))) { tx.categories.push(sub.categories[0]); how.push(labelOf(CATEGORY_OPTIONS, sub.categories[0])); }
-    if (sub.merchants?.length && !tx.merchant) { tx.merchant = sub.merchants[0]; how.push(sub.merchants[0]); }
     if (sub.payment_methods?.length && !tx.paymentMethod) { tx.paymentMethod = sub.payment_methods[0]; how.push(labelOf(PM_OPTIONS, sub.payment_methods[0])); }
-    for (const c of sub.custom || []) {
-      if (tx.custom[c.field] != null) continue;
-      if (c.op === 'is') { tx.custom[c.field] = c.value; how.push(`${c.field}=${c.value}`); }
-      else if (c.op === 'in') { const a = Array.isArray(c.value) ? c.value : [c.value]; tx.custom[c.field] = a[0]; how.push(`${c.field}=${a[0]}`); }
-    }
   }
 
   return { tx, how, note };
@@ -138,13 +96,14 @@ export function recommend(json, fixed, rates = {}) {
   const seen = new Set();
   const options = [];
 
-  // Baseline: pay with only the fixed fields (no extra choice).
+  // Baseline: pay with only the fixed fields (no extra choice). 未指定地區 → 國內。
   const baseTx = {
     amount: Number(fixed.amount) || 0,
     periodSpend: fixed.periodSpend,
-    isOverseas: fixed.isOverseas ?? null,
+    isOverseas: fixed.isOverseas ?? false,
     hasFee: fixed.hasFee,
     currency: fixed.currency || null,
+    mcc: fixed.mcc || null,
     channels: fixed.channels || [],
     categories: fixed.categories || [],
     merchant: fixed.merchant || null,

@@ -61,13 +61,13 @@ export default function EligibilityFields({ data, nodeId, update }) {
         value={data.default}
         options={DEFAULTS}
         onChange={(v) => update({ default: v })}
-        hint="新建時尚未選 → 節點顯示黃點提醒。限時 / 新戶促銷選「未符合」:日常試算不灌水,在分析面板勾選資格才解鎖下游。"
+        hint="尚未選 → 節點顯示黃點。需先達成才享的資格(新戶/限時/登錄…)選「未符合」:日常試算不灌水,分析面板勾選才解鎖下游。"
       />
       {data.default == null && (
         <p className="-mt-1 text-[10px]" style={{ color: 'var(--cf-warn)' }}>尚未選擇預設狀態</p>
       )}
 
-      <SelectField label="重設週期（一次性=新戶/身分;每月/季/年=登錄或任務需重新達成）" value={data.cycle || 'once'} options={ELIG_CYCLES} onChange={(v) => update({ cycle: v })} />
+      <SelectField label="重設週期" hint="這項資格多久要重新達成一次。不重設=達成後一直有效(新戶、整檔登錄一次…);每月/季/年=每期重新達成。" value={data.cycle || 'once'} options={ELIG_CYCLES} onChange={(v) => update({ cycle: v })} />
 
       {controlled.length > 0 ? (
         <div>

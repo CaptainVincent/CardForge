@@ -2,14 +2,17 @@
 
 export const CURRENCY_OPTIONS = ['JPY', 'KRW', 'THB', 'USD', 'EUR', 'CNY', 'HKD', 'SGD', 'GBP', 'AUD'];
 
+// 通路 = 交易的「場景/管道」(網購 vs 實體門市/官網…)。**只描述「在哪刷」**:
+//   - 海外/國別 → match.is_overseas / countries(消費地,另一軸)
+//   - 行動支付 / 感應 / 具名電子支付 → payment_methods(「怎麼付」,另一軸)
+// 一條軸一件事,不重疊。
 export const CHANNEL_OPTIONS = [
   { value: 'online', label: '網購' },
-  { value: 'mobile_pay', label: '行動支付' },
-  { value: 'contactless', label: '感應' },
-  { value: 'overseas', label: '海外' },
 ];
 
-// 類別 / MCC — what is bought (distinct axis from channel = how it's paid).
+// 「買什麼」軸,由粗到細三級,擇一表達即可(別重複描述同一筆):
+//   類別 categories(粗,餐飲/超市…) → MCC(中,銀行交易碼) → 特店 merchants(細,指定商家)。
+// 與「怎麼付」(channels/payment_methods)、「在哪買」(is_overseas/countries)是不同軸。
 export const CATEGORY_OPTIONS = [
   { value: 'dining', label: '餐飲' },
   { value: 'supermarket', label: '超市' },
@@ -21,20 +24,31 @@ export const CATEGORY_OPTIONS = [
   { value: 'drugstore', label: '藥妝' },
 ];
 
+// 「怎麼付」唯一軸 —— 含階層:群組(粗,行動支付/感應)+ 具名工具(細,Apple Pay…)。
+// 成員標 `groups`,引擎比對時「要求群組」可命中該群組任一成員(Apple Pay ∈ 行動支付),
+// 故作者用粗或細皆可、語意一致,不再像過去「行動支付在通路、Apple Pay 在支付」兩處割裂。
 export const PM_OPTIONS = [
-  { value: 'apple_pay', label: 'Apple Pay' },
-  { value: 'google_pay', label: 'Google Pay' },
-  { value: 'samsung_pay', label: 'Samsung Pay' },
-  { value: 'line_pay', label: 'LINE Pay' },
-  { value: 'jkopay', label: '街口' },
-  { value: 'pxpay', label: '全支付' },
-  { value: 'easywallet', label: '悠遊付' },
-  { value: 'ipass_money', label: '一卡通MONEY' },
-  { value: 'taiwan_pay', label: '台灣Pay' },
-  { value: 'pi_wallet', label: 'Pi錢包' },
-  { value: 'easycard', label: '悠遊卡' },
-  { value: 'ipass', label: '一卡通' },
+  { value: 'mobile_pay', label: '行動支付' },   // 群組:泛指各行動支付/電子錢包
+  { value: 'contactless', label: '感應' },      // 群組:NFC 感應
+  { value: 'apple_pay', label: 'Apple Pay', groups: ['mobile_pay', 'contactless'] },
+  { value: 'google_pay', label: 'Google Pay', groups: ['mobile_pay', 'contactless'] },
+  { value: 'samsung_pay', label: 'Samsung Pay', groups: ['mobile_pay', 'contactless'] },
+  { value: 'line_pay', label: 'LINE Pay', groups: ['mobile_pay'] },
+  { value: 'jkopay', label: '街口', groups: ['mobile_pay'] },
+  { value: 'pxpay', label: '全支付', groups: ['mobile_pay'] },
+  { value: 'easywallet', label: '悠遊付', groups: ['mobile_pay'] },
+  { value: 'ipass_money', label: '一卡通MONEY', groups: ['mobile_pay'] },
+  { value: 'taiwan_pay', label: '台灣Pay', groups: ['mobile_pay'] },
+  { value: 'pi_wallet', label: 'Pi錢包', groups: ['mobile_pay'] },
+  { value: 'easycard', label: '悠遊卡', groups: ['contactless'] },
+  { value: 'ipass', label: '一卡通', groups: ['contactless'] },
 ];
+
+// 成員 value → 所屬群組,供引擎做階層比對(Apple Pay ⇒ 也算「行動支付」「感應」)。
+// 單一來源即上方 PM_OPTIONS,衍生而來不另維護。
+export const PAYMENT_GROUPS = Object.fromEntries(
+  PM_OPTIONS.filter((o) => o.groups?.length).map((o) => [o.value, o.groups])
+);
 
 export const REWARD_METHODS = [
   { value: 'percentage', label: '百分比 (%)' },
@@ -87,10 +101,10 @@ export const LIMIT_METRICS = [
   { value: 'count', label: '筆數' },
 ];
 
-// 資格「重設週期」:多久要重新達成一次(新戶=一次性;每月登錄/每季任務…)。
-// 屬規則靜態事實;這期到底達成沒,屬記帳/分析的動態真實。
+// 資格「重設週期」= 多久需重新達成一次(規則靜態事實;這期達成沒屬記帳的動態)。
+// 用「不重設」而非「一次性」,避免與『發放方式·里程碑(發放一次)』撞義。
 export const ELIG_CYCLES = [
-  { value: 'once', label: '一次性' },
+  { value: 'once', label: '不重設' },
   { value: 'monthly', label: '每月' },
   { value: 'quarterly', label: '每季' },
   { value: 'yearly', label: '每年' },

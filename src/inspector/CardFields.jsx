@@ -46,7 +46,7 @@ export default function CardFields({ data, update }) {
         onChange={(v) => update({ statementDay: v })}
       />
       <label className="block">
-        <span className="cf-field-label">持卡開始日 (選填)<span className="text-[var(--cf-text-faint)]">(新戶首刷期限起算)</span></span>
+        <span className="cf-field-label">持卡開始日 (選填)<span className="text-[var(--cf-text-faint)]">(「開卡後 N 天內」時間窗的起算日)</span></span>
         <input type="date" className="cf-input" value={data.opened || ''} onChange={(e) => update({ opened: e.target.value || null })} />
       </label>
     </>

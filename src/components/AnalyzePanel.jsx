@@ -443,6 +443,7 @@ export default function AnalyzePanel({ nodes, edges, onClose }) {
 
               {tab === 'recommend' && rec?.best && (
                 <>
+                  <p className="text-[11px] leading-relaxed text-[var(--cf-text-faint)]">依你指定的情境,建議「怎麼刷」(付款方式/通路/登錄)。海外/國別/類別等<strong>消費情境</strong>請在左側指定——不同情境不可互比,故不會自動列出。</p>
                   <div className="rounded-lg border border-[var(--cf-border)] bg-[var(--cf-surface)] p-4">
                     <div className="flex items-baseline justify-between">
                       <span className="text-[11px] text-[var(--cf-text-faint)]">最佳回饋</span>

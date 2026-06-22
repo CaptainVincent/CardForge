@@ -31,6 +31,7 @@ export default function ConditionFields({ data, update }) {
       <FieldGroup title="消費對象">
         <ChipMultiSelect
           label="類別"
+          hint="買什麼的「粗分類」(餐飲/超市…)。要更精確用 MCC,要鎖定特定商家用「特店」。三者由粗到細,擇一表達即可。"
           values={data.categories || []}
           options={CATEGORY_OPTIONS}
           custom={customOptions.categories}
@@ -57,6 +58,7 @@ export default function ConditionFields({ data, update }) {
       <FieldGroup title="支付與通路">
         <ChipMultiSelect
           label="通路"
+          hint="交易的「場景/管道」:網購、實體門市、官網…(在哪刷)。怎麼付(行動支付/感應/具名支付)請用下方「支付方式」。"
           values={data.channels || []}
           options={CHANNEL_OPTIONS}
           custom={customOptions.channels}
@@ -65,6 +67,7 @@ export default function ConditionFields({ data, update }) {
         />
         <ChipMultiSelect
           label="支付方式"
+          hint="怎麼付,單一軸含階層:粗選「行動支付/感應」(泛指)或細選具名工具(Apple Pay/LINE Pay…)。選了「行動支付」即涵蓋旗下各 App,不必逐一勾。"
           values={data.paymentMethods || []}
           options={PM_OPTIONS}
           custom={customOptions.paymentMethods}
