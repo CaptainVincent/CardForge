@@ -158,6 +158,57 @@
           "note": "卡友日(時段=星期,多日):每週五/六/日於夢時代『指定用餐店櫃』加碼 +8%、每月上限 150 點。『用餐店櫃』無對應欄位故記此(以特店=夢時代近似)。其餘卡友日(週一星巴克招待、週二 COLD STONE 買1送1、每月1號家樂福加購…)屬贈品/折價,非%回饋 → 不結構化。",
           "reward_posting": { "account": "Income:CreditCard:Reward:CTBC:uniopen" }
         },
+        "fanday-books-weekend": {
+          "id": "fanday-books-weekend",
+          "name": "卡友日:週六日 博客來 App 滿 $3,000 +6%（月上限 200 點）",
+          "card": "中國信託 uniopen 聯名卡",
+          "account": "Liabilities:CreditCard:CTBC:uniopen",
+          "account_match": "exact",
+          "is_active": true,
+          "period": { "cycle": "monthly", "start": "2026-01-01", "end": "2026-06-30" },
+          "match": { "merchants": ["博客來"], "day_of_week": ["sat", "sun"], "min_amount_twd": 3000 },
+          "eligibility": {},
+          "reward": { "type": "points", "method": "percentage", "rate": 0.06, "point_name": "OPENPOINT" },
+          "tiers": { "mode": "flat" },
+          "limits": { "caps": [ { "metric": "reward", "window": "period", "max": 200 } ] },
+          "stacking": { "layer": "bonus", "group": "ctbc-uniopen" },
+          "note": "卡友日(回審補回):每週六/日於博客來『App』單筆滿 3,000 加碼最高 +6%、月上限 200 點。限 App 通路(無精確欄位,以特店=博客來近似)。",
+          "reward_posting": { "account": "Income:CreditCard:Reward:CTBC:uniopen" }
+        },
+        "fanday-gas-tts": {
+          "id": "fanday-gas-tts",
+          "name": "卡友日:週二四六 速邁樂加油 +6%",
+          "card": "中國信託 uniopen 聯名卡",
+          "account": "Liabilities:CreditCard:CTBC:uniopen",
+          "account_match": "exact",
+          "is_active": true,
+          "period": { "cycle": "monthly", "start": "2026-01-01", "end": "2026-06-30" },
+          "match": { "merchants": ["統一精工速邁樂加油站"], "day_of_week": ["tue", "thu", "sat"] },
+          "eligibility": {},
+          "reward": { "type": "points", "method": "percentage", "rate": 0.06, "point_name": "OPENPOINT" },
+          "tiers": { "mode": "flat" },
+          "limits": {},
+          "stacking": { "layer": "bonus", "group": "ctbc-uniopen" },
+          "note": "卡友日(回審補回):每週二/四/六於速邁樂『人工島加汽油 ≥30 公升』加碼最高 +6%。油量條件(≥30L)無對應欄位 → 記此;官網未載上限。",
+          "reward_posting": { "account": "Income:CreditCard:Reward:CTBC:uniopen" }
+        },
+        "fanday-foodomo-tue": {
+          "id": "fanday-foodomo-tue",
+          "name": "卡友日:週二 foodomo 滿 $500 送 50 點（需登錄）",
+          "card": "中國信託 uniopen 聯名卡",
+          "account": "Liabilities:CreditCard:CTBC:uniopen",
+          "account_match": "exact",
+          "is_active": true,
+          "period": { "cycle": "monthly", "start": "2026-01-01", "end": "2026-06-30" },
+          "match": { "merchants": ["foodomo"], "day_of_week": ["tue"], "min_amount_twd": 500 },
+          "eligibility": { "flags": ["已登錄"] },
+          "reward": { "type": "cashback", "method": "fixed", "fixed_amount": 50, "reward_currency": "TWD" },
+          "tiers": { "mode": "flat" },
+          "limits": {},
+          "stacking": { "layer": "bonus", "group": "ctbc-uniopen" },
+          "note": "卡友日(回審補回):每週二於 foodomo 滿 500 送 50 點(OPENPOINT 1:1,以固定現金表達);需登錄(資格『已登錄』,預設未選)。",
+          "reward_posting": { "account": "Income:CreditCard:Reward:CTBC:uniopen" }
+        },
         "sub-newcustomer": {
           "id": "sub-newcustomer",
           "name": "新戶禮:核卡 30 日內任刷 1 筆送 500 點",
@@ -195,7 +246,7 @@
           "reward_posting": { "account": "Income:CreditCard:Reward:CTBC:uniopen" }
         }
       },
-      "eligibility_flags": { "綁定icash Pay": {} },
+      "eligibility_flags": { "綁定icash Pay": {}, "已登錄": {} },
       "select_groups": { "uniopen-sub": { "mode": "pick" } }
     }
   ],
