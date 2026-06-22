@@ -206,7 +206,6 @@ export function exportCard(cardNode, nodes, edges) {
   const limitPools = {};
   const eligibilityPools = {};
   const eligibilityFlags = {}; // flag name → { default } (新戶/登錄…); shared by NAME
-  const topGroups = {}; // top node id → { k } (members ranked by 當期消費)
   const selectGroups = {}; // select node id → { mode } ('best'=取最高 / 'pick'=自選擇一)
 
   const rules = {};
@@ -219,8 +218,6 @@ export function exportCard(cardNode, nodes, edges) {
     const limitNodes = outgoing(reward.id).filter((n) => n.type === 'limit');
     const selectNode = outgoing(reward.id).find((n) => n.type === 'select');
     if (selectNode && !selectGroups[selectNode.id]) { const md = (selectNode.data || {}).mode; selectGroups[selectNode.id] = md ? { mode: md } : {}; }
-    const topNode = outgoing(reward.id).find((n) => n.type === 'top');
-    if (topNode && !topGroups[topNode.id]) topGroups[topNode.id] = { k: Math.max(1, Number((topNode.data || {}).k) || 1) };
 
     // Each limit node → a set of caps; pooled when fed by >1 reward (shared
     // accumulator). A reward may carry several limit nodes (independent caps).
@@ -294,7 +291,7 @@ export function exportCard(cardNode, nodes, edges) {
               }
             : { mode: 'flat' },
         limits: {},
-        stacking: { layer: rd.layer || 'base', group: slug(cardName), ...(selectNode ? { select_group: selectNode.id } : {}), ...(topNode ? { top_group: topNode.id } : {}) },
+        stacking: { layer: rd.layer || 'base', group: slug(cardName), ...(selectNode ? { select_group: selectNode.id } : {}) },
         reward_posting: { account: `Income:CreditCard:Reward:${account.split(':').slice(-2).join(':')}` },
         provenance: { generated_by: 'cardforge' },
       };
@@ -403,7 +400,6 @@ export function exportCard(cardNode, nodes, edges) {
   if (Object.keys(limitPools).length) result.limit_pools = limitPools;
   if (Object.keys(eligibilityPools).length) result.eligibility_pools = eligibilityPools;
   if (Object.keys(eligibilityFlags).length) result.eligibility_flags = eligibilityFlags;
-  if (Object.keys(topGroups).length) result.top_groups = topGroups;
   if (Object.keys(selectGroups).length) result.select_groups = selectGroups;
   return result;
 }

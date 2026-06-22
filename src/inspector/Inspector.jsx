@@ -10,7 +10,6 @@ import RewardFields from './RewardFields';
 import LimitFields from './LimitFields';
 import GateFields from './GateFields';
 import EligibilityFields from './EligibilityFields';
-import TopFields from './TopFields';
 import SelectFields from './SelectFields';
 
 const FIELDS = {
@@ -21,7 +20,6 @@ const FIELDS = {
   limit: LimitFields,
   gate: GateFields,
   eligibility: EligibilityFields,
-  top: TopFields,
   select: SelectFields,
 };
 

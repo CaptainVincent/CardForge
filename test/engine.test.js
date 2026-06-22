@@ -77,16 +77,6 @@ describe('relational', () => {
     expect(simulate(j, { amount: 1000 }).cashback).toBe(50); // not 70
   });
 
-  it('取高 (top_group) rewards only the top-K spend categories', () => {
-    const mk = (k) => db({
-      din: rule({ match: { categories: ['dining'] }, reward: cash(0.05), stacking: { layer: 'bonus', top_group: 't' } }),
-      trv: rule({ match: { categories: ['travel'] }, reward: cash(0.05), stacking: { layer: 'bonus', top_group: 't' } }),
-    }, { top_groups: { t: { k } } });
-    const txns = [{ amount: 1000, categories: ['dining'] }, { amount: 3000, categories: ['travel'] }, { amount: 500, categories: ['dining'] }];
-    expect(simulateMonth(mk(1), txns).totals.cashback).toBe(200); // dining(50)+travel(150)+excluded(0)
-    expect(simulateMonth(mk(2), txns).totals.cashback).toBe(225); // both active
-  });
-
   it('gate (min_spending) unlocks only once cumulative spend clears the threshold', () => {
     const j = db({ r: rule({ reward: cash(0.04), eligibility: { min_spending: { amount: 3000, currency: 'TWD', period: 'monthly' } } }) });
     const txns = [{ amount: 2000 }, { amount: 2000 }]; // cum 2000 (locked), cum 4000 (unlocked → 80)
@@ -139,15 +129,14 @@ describe('round-trip (import → export preserves every construct)', () => {
   const source = {
     cards: [{
       card: 'RT', account: ACC, rounding: 'floor', fx_fee_rate: 1.5,
-      top_groups: { tg: { k: 1 } },
       rules: {
-        marg: base({ id: 'marg', name: 'm', match: { merchants: ['喬山'], channels: ['實體門市'] }, reward: cash(0), tiers: { mode: 'marginal', bands: [{ min_amount: 0, rate: 0.01 }, { min_amount: 10000, rate: 0.05 }] }, limits: { caps: [{ metric: 'reward', window: 'period', max: 300 }] }, stacking: { layer: 'bonus', group: 'rt', top_group: 'tg' }, note: '喬山限實體門市', is_active: false }),
-        cnt: base({ id: 'cnt', name: 'c', match: { categories: ['convenience'] }, reward: cash(0.1), tiers: { mode: 'flat' }, limits: { caps: [{ metric: 'count', window: 'period', max: 3 }] }, stacking: { layer: 'bonus', group: 'rt', top_group: 'tg' } }),
+        marg: base({ id: 'marg', name: 'm', match: { merchants: ['喬山'], channels: ['實體門市'] }, reward: cash(0), tiers: { mode: 'marginal', bands: [{ min_amount: 0, rate: 0.01 }, { min_amount: 10000, rate: 0.05 }] }, limits: { caps: [{ metric: 'reward', window: 'period', max: 300 }] }, stacking: { layer: 'bonus', group: 'rt' }, note: '喬山限實體門市', is_active: false }),
+        cnt: base({ id: 'cnt', name: 'c', match: { categories: ['convenience'] }, reward: cash(0.1), tiers: { mode: 'flat' }, limits: { caps: [{ metric: 'count', window: 'period', max: 3 }] }, stacking: { layer: 'bonus', group: 'rt' } }),
       },
     }],
   };
 
-  it('preserves tiers / caps / merchants / top / note / is_active', () => {
+  it('preserves tiers / caps / merchants / note / is_active', () => {
     const { nodes, edges } = importFromJson(source);
     const out = exportToJson(nodes, edges);
     const rules = Object.values(out.cards[0].rules);
@@ -158,7 +147,6 @@ describe('round-trip (import → export preserves every construct)', () => {
     expect(marg.note).toBe('喬山限實體門市');
     expect(marg.is_active).toBe(false);
     expect(rules.some((r) => r.limits?.caps?.some((c) => c.metric === 'count'))).toBe(true);
-    expect(Object.keys(out.cards[0].top_groups)).toHaveLength(1);
   });
 
   it('pooled caps share one pool id across member rules', () => {
@@ -182,7 +170,6 @@ describe('round-trip (import → export preserves every construct)', () => {
         n: rs.length,
         marginal: rs.filter((r) => r.tiers?.mode === 'marginal').length,
         count: rs.filter((r) => r.limits?.caps?.some((c) => c.metric === 'count')).length,
-        tops: Object.keys(out.cards[0].top_groups || {}).length,
       };
     };
     const g1 = importFromJson(source); const o1 = exportToJson(g1.nodes, g1.edges);
@@ -508,12 +495,10 @@ describe('inactiveNodeIds (統一「無用路徑」)', () => {
 
 describe('validate (completeness)', () => {
   const N = (type, data = {}) => ({ id: type, type, data });
-  it('擇一/取高 need ≥2 inputs', () => {
+  it('擇一 needs ≥2 inputs', () => {
     const sel = N('select');
     const edges = [{ source: 'r1', target: 'select' }];
     expect(nodeIssues(sel, edges).some((i) => i.message.includes('擇一'))).toBe(true);
-    const top = N('top');
-    expect(nodeIssues(top, [{ source: 'r1', target: 'top' }]).some((i) => i.message.includes('取高'))).toBe(true);
   });
   it('擇一 with ≥2 inputs but no 選法 chosen warns (tri-state)', () => {
     const sel = N('select'); // mode unset

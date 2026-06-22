@@ -6,10 +6,10 @@
 // Checks, in order:
 //   1. importFromJson()  — must not throw; reports the rebuilt node/edge graph.
 //   2. nodeIssues()      — per-node completeness (missing rate, <2 inputs to 擇優/
-//                          取高, unconnected, no cap set, …). ERRORS fail the run.
+//                          未連接, no cap set, …). ERRORS fail the run.
 //   3. exportToJson()    — must not throw (round-trips back to canonical shape).
 //   4. feature fingerprint — confirms the constructs you INTENDED (marginal tiers,
-//                          metric caps, 取高 groups, 擇優, gates, points) actually
+//                          metric caps, 擇優, gates, points) actually
 //                          survived import→export, i.e. the engine understood them.
 //   5. simulateMonth()   — runs a few synthetic txns per card; must not throw.
 //
@@ -54,11 +54,10 @@ const asDb = (j) => (j.cards ? j : j.card ? { cards: [j] } : { cards: [] });
 
 // Count the constructs present, independent of volatile group/pool ids.
 function fingerprint(db) {
-  const f = { rules: 0, marginal: 0, spend: 0, caps: { reward: 0, spend: 0, count: 0 }, tops: 0, selects: new Set(), gates: 0, points: new Set() };
+  const f = { rules: 0, marginal: 0, spend: 0, caps: { reward: 0, spend: 0, count: 0 }, selects: new Set(), gates: 0, points: new Set() };
   for (const c of db.cards || []) {
     const rs = c.rules ? (Array.isArray(c.rules) ? c.rules : Object.values(c.rules)) : [];
     f.rules += rs.length;
-    f.tops += Object.keys(c.top_groups || {}).length;
     for (const r of rs) {
       if (r.tiers?.mode === 'marginal') f.marginal++;
       if (r.tiers?.mode === 'spend') f.spend++;
@@ -111,11 +110,10 @@ cmp('消費級距(spend)', fin.spend, fout.spend);
 cmp('上限·回饋', fin.caps.reward, fout.caps.reward);
 cmp('上限·消費', fin.caps.spend, fout.caps.spend);
 cmp('上限·筆數', fin.caps.count, fout.caps.count);
-cmp('取高群組', fin.tops, fout.tops);
 cmp('擇一群組', fin.selects, fout.selects);
 cmp('門檻(gate)', fin.gates, fout.gates);
 cmp('點數計畫', fin.points, fout.points);
-info.push(`features — 規則${fin.rules} marginal${fin.marginal} spend${fin.spend} caps(回${fin.caps.reward}/消${fin.caps.spend}/筆${fin.caps.count}) 取高${fin.tops} 擇一${fin.selects} 門檻${fin.gates} 點數${fin.points}`);
+info.push(`features — 規則${fin.rules} marginal${fin.marginal} spend${fin.spend} caps(回${fin.caps.reward}/消${fin.caps.spend}/筆${fin.caps.count}) 擇一${fin.selects} 門檻${fin.gates} 點數${fin.points}`);
 
 // ---- 5. simulate smoke ----
 const sampleTxns = [

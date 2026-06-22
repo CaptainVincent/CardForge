@@ -262,8 +262,8 @@ function selectBest(candidates, rates) {
 
 // Single-transaction evaluation (試算/推薦/比較). Shares match/eligibility/reward/
 // 擇優 with simulateMonth via the same helpers; INTENTIONALLY omits cross-txn
-// constraints (period/total caps, 取高 ranking) — those are undefined for one
-// isolated transaction. Use simulateMonth for stateful, multi-period accuracy.
+// constraints (period/total caps) — those are undefined for one isolated
+// transaction. Use simulateMonth for stateful, multi-period accuracy.
 export function simulate(json, tx, rates = {}) {
   const rules = Object.values(json?.rules || {});
   const fired = [];
@@ -334,7 +334,6 @@ export function netScore(result, json, tx, rates = {}) {
 export function simulateMonth(json, txns = [], rates = {}) {
   const rules = Object.values(json?.rules || {});
 
-  const topConf = json?.top_groups || {};
   const stmtDay = json?.statement_day; // statement-close day for billing_cycle buckets
   const opened = json?.opened;         // card open date — resolves relative SUB windows
   const spendInCycle = {}; // `${cycle}:${instance}` → cumulative spend in that cycle instance
@@ -342,7 +341,6 @@ export function simulateMonth(json, txns = [], rates = {}) {
   const windowSpend = {};  // ruleId → in-window cumulative (for dated total-gates: SUB)
   const capUsed = {};       // bucket(@instance) → accumulated reward counted against the cap
   const capMeta = {};       // bucket(@instance) → { name, max, hit, firstHitTxn, lost }
-  const topSpend = {};      // top group → { ruleId → 當期累積消費 } (ranking basis)
   const gateUnlock = {};    // ruleId → txn index where it unlocked
   const claimed = new Set();
   const oneTime = [];
@@ -406,18 +404,10 @@ export function simulateMonth(json, txns = [], rates = {}) {
         continue;
       }
 
-      // 取高:該類別本期累積消費(用於排名,含本筆),不論回饋是否最終被取高排除。
-      const topGroup = rule.stacking?.top_group || null;
-      if (topGroup) {
-        topSpend[topGroup] = topSpend[topGroup] || {};
-        topSpend[topGroup][rule.id] = (topSpend[topGroup][rule.id] || 0) + (Number(tx.amount) || 0);
-      }
-
       fired.push({
         id: rule.id,
         name: rule.name,
         selectGroup: rule.stacking?.select_group || null,
-        topGroup,
         caps: resolveCaps(rule, json).filter((c) => c.window !== 'txn'), // txn caps already applied in rewardFor
         reward: base,
       });
@@ -427,30 +417,12 @@ export function simulateMonth(json, txns = [], rates = {}) {
     // BEFORE caps, so only the winner consumes a shared period/total cap.
     const { effective } = selectBest(fired, rates);
 
-    // Phase 2.5: 取高 (top-K by 當期累積消費). Per group, only the members whose
-    // category currently ranks in the top K (by cumulative period spend, incl.
-    // this txn) stay rewarded; the rest are zeroed for this txn. Models 自動取
-    // 最高消費類別 (Citi Custom Cash、CUBE 自選).
-    const topActive = {}; // group → Set(ruleId) of currently-active members
-    for (const [g, spends] of Object.entries(topSpend)) {
-      const k = Math.max(1, Number(topConf[g]?.k) || 1);
-      topActive[g] = new Set(
-        Object.entries(spends).sort((a, b) => b[1] - a[1]).slice(0, k).map(([rid]) => rid),
-      );
-    }
-    for (const f of effective) {
-      if (f.topGroup && !topActive[f.topGroup]?.has(f.id)) {
-        f.reward = { ...f.reward, value: 0, topExcluded: true };
-      }
-    }
-
     // Phase 3: apply each SELECTED reward's caps (metric-aware). Caps share an
     // accumulator per bucket (pooled across rules); applied to the 擇優 winner
     // only. reward-metric truncates the reward; spend-metric prorates the reward
     // to the portion of spend under the cap (e.g. 5% on first $1,500); count-
     // metric zeroes the reward once N qualifying txns are used (first-N).
     for (const f of effective) {
-      if (f.reward.topExcluded) continue; // 取高排除:不計入任何上限累加器
       let value = f.reward.value;
       let capped = f.reward.capped;
       for (const c of f.caps) {

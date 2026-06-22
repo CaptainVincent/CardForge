@@ -98,8 +98,6 @@ function importOneCard(json, nodes, edges, yBase) {
 
   let groupY = yBase + 40;
   const selectGroups = {}; // select_group id → [rewardId, ...]
-  const topGroups = {}; // top_group id → [rewardId, ...]
-  const topGroupConf = json.top_groups || {}; // top_group id → { k }
   const poolLimitNodes = {}; // limit pool id → shared limit node id
   const flagRegistry = json.eligibility_flags || {}; // flag name → { default }
   const flagNodes = {}; // flag name → shared 資格 node id (one node controls many rewards)
@@ -263,10 +261,7 @@ function importOneCard(json, nodes, edges, yBase) {
       // 擇優 group membership (rebuilt into a select node after the loop).
       const sg = rule.stacking?.select_group;
       if (sg) (selectGroups[sg] = selectGroups[sg] || []).push(rewardId);
-
-      // 取高 group membership (rebuilt into a top node after the loop).
-      const tg = rule.stacking?.top_group;
-      if (tg) (topGroups[tg] = topGroups[tg] || []).push(rewardId);
+      // 取高(top_group)已退役:外部 JSON 若帶它,優雅忽略(該規則當普通規則),不重建節點。
 
       ruleY += 200;
     }
@@ -285,16 +280,7 @@ function importOneCard(json, nodes, edges, yBase) {
     selY += 160;
   }
 
-  // Rebuild one 取高 (top) node per group; K carried from top_groups config.
-  let topY = yBase + 40;
-  for (const [tgId, rewardIds] of Object.entries(topGroups)) {
-    const topId = nextId();
-    nodes.push({ id: topId, type: 'top', position: { x: 1500, y: topY }, data: { k: Math.max(1, Number(topGroupConf[tgId]?.k) || 1) } });
-    for (const rid of rewardIds) edges.push(edge(rid, topId));
-    topY += 160;
-  }
-
-  return Math.max(groupY, selY, topY, yBase + 360);
+  return Math.max(groupY, selY, yBase + 360);
 }
 
 // Accepts a single CardForge card ({card, rules}) or a database ({cards:[...]}).

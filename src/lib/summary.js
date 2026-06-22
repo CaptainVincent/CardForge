@@ -135,7 +135,6 @@ export function nodeSummary(node) {
     case 'gate': return gateSummary(d);
     case 'eligibility': return eligibilitySummary(d);
     case 'select': return d.mode === 'pick' ? '自選（指定一條）' : d.mode === 'best' ? '擇優（自動取最高）' : '尚未選擇選法';
-    case 'top': return `取高（當期消費最高 ${Math.max(1, Number(d.k) || 1)} 類）`;
     default: return '';
   }
 }

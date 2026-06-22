@@ -8,7 +8,7 @@ import { NODE_TYPES, nodeTitle, nodeRole, PATH_TARGETS, SINK_TARGETS } from '../
 
 // The sensible role graph, DERIVED from each type's role (registry single source):
 //  source / path / constraint → may point at any path-like or a reward (PATH_TARGETS)
-//  reward                     → may point at its constraints (SINK_TARGETS: 上限/擇優/取高)
+//  reward                     → may point at its constraints (SINK_TARGETS: 上限/擇優)
 //  sink                       → terminal, points at nothing
 // Adding a node of a known role needs no edit here.
 const targetsForRole = (role) => {
@@ -28,7 +28,6 @@ export function edgeIssue(s, t) {
   if (t === 'card') return '卡片不能有輸入';
   if (t === 'limit') return '「上限」只能接在「回饋」之後';
   if (t === 'select') return '「擇一」只能由「回饋」連入（擇優/自選一條）';
-  if (t === 'top') return '「取高」只能由「回饋」連入（取當期消費最高）';
   if (s === 'reward' && (t === 'condition' || t === 'gate')) return '「回饋」之後不應再接條件/門檻';
   if (s === 'reward' && t === 'reward') return '回饋不應串接回饋（疊加請各自連到卡片）';
   if (!NODE_TYPES[s]?.hasSource) return `「${nodeTitle(s)}」是終點,不能再往外接`;

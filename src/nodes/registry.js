@@ -1,7 +1,7 @@
 // Single source of truth for every node type.
 // Title / icon / accent / handles / menu all derive from here — add a node
 // type in ONE place instead of editing summary, icons, App, MiniMap, nodes/index.
-import { CreditCard, Filter, Split, Flag, Percent, ArrowUpToLine, Crown, Trophy, BadgeCheck } from 'lucide-react';
+import { CreditCard, Filter, Split, Flag, Percent, ArrowUpToLine, Crown, BadgeCheck } from 'lucide-react';
 
 // kind: 'terminal' (anchors — input card / output reward) vs 'operator'
 // (logic/constraints in between). Drives a distinct visual so they don't blur.
@@ -21,7 +21,6 @@ export const NODE_TYPES = {
   eligibility:{ title: '資格',    icon: BadgeCheck,    accent: '#6e72a8', kind: 'operator', role: 'constraint', hasTarget: true,  hasSource: true,  menu: '資格' },
   limit:     { title: '上限',     icon: ArrowUpToLine, accent: '#b0894a', kind: 'operator', role: 'sink',       hasTarget: true,  hasSource: false, menu: '上限' },
   select:    { title: '擇一',     icon: Crown,         accent: '#b07a7a', kind: 'operator', role: 'sink',       hasTarget: true,  hasSource: false, menu: '擇一' },
-  top:       { title: '取高',     icon: Trophy,        accent: '#a85e8a', kind: 'operator', role: 'sink',       hasTarget: true,  hasSource: false, menu: '取高' },
 };
 
 const FALLBACK_ACCENT = '#a3a09a';

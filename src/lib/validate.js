@@ -47,12 +47,6 @@ export function nodeIssues(node, edges, nodes = []) {
     }
   }
 
-  if (node.type === 'top') {
-    if (edges.filter((e) => e.target === node.id).length < 2) {
-      E('「取高」需連入兩個以上回饋(取當期消費最高)');
-    }
-  }
-
   if (node.type === 'reward') {
     const m = d.method || 'percentage';
     if (m === 'percentage') {
